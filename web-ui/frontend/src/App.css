@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.App {
+  @apply font-sans antialiased;
+}
+
+/* Custom component styles */
+.nav-link {
+  @apply px-3 py-2 rounded-md text-sm font-medium transition-colors;
+}
+
+.nav-link-active {
+  @apply bg-primary-500 text-white;
+}
+
+.nav-link-inactive {
+  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100;
+}
+
+.card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.card-body {
+  @apply px-6 py-4;
+}
+
+.btn {
+  @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors;
+}
+
+.btn-primary {
+  @apply btn bg-primary-500 hover:bg-primary-600 text-white focus:ring-primary-500;
+}
+
+.btn-secondary {
+  @apply btn bg-gray-200 hover:bg-gray-300 text-gray-900 focus:ring-gray-500;
+}
+
+.form-input {
+  @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+}
+
+.form-select {
+  @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm;
+}
+
+.table {
+  @apply min-w-full divide-y divide-gray-200;
+}
+
+.table-header {
+  @apply bg-gray-50;
+}
+
+.table-cell {
+  @apply px-6 py-4 whitespace-nowrap text-sm;
+}
+
+.table-header-cell {
+  @apply table-cell text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
