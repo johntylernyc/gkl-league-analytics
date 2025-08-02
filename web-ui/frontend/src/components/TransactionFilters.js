@@ -7,7 +7,8 @@ const TransactionFilters = ({ filters, onFiltersChange, onReset }) => {
     transactionTypes: [],
     movementTypes: [],
     teams: [],
-    positions: []
+    positions: [],
+    mlbTeams: []
   });
   const [playerSearch, setPlayerSearch] = useState(filters.search || '');
 
@@ -111,11 +112,11 @@ const TransactionFilters = ({ filters, onFiltersChange, onReset }) => {
           {/* Team */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              MLB Team
+              Fantasy Team
             </label>
             <select
-              value={filters.playerTeam || ''}
-              onChange={(e) => handleFilterChange('playerTeam', e.target.value)}
+              value={filters.teamName || ''}
+              onChange={(e) => handleFilterChange('teamName', e.target.value)}
               className="form-select"
             >
               <option value="">All Teams</option>
@@ -126,16 +127,36 @@ const TransactionFilters = ({ filters, onFiltersChange, onReset }) => {
           </div>
         </div>
 
-        {/* Position filter - full width row */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Position
-          </label>
-          <PositionFilter
-            selectedPositions={filters.playerPosition || ''}
-            availablePositions={availableFilters.positions || []}
-            onChange={(value) => handleFilterChange('playerPosition', value)}
-          />
+        {/* Second row with MLB Team and Position filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* MLB Team */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              MLB Team
+            </label>
+            <select
+              value={filters.playerTeam || ''}
+              onChange={(e) => handleFilterChange('playerTeam', e.target.value)}
+              className="form-select"
+            >
+              <option value="">All MLB Teams</option>
+              {(availableFilters.mlbTeams || []).map(team => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Position filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Position
+            </label>
+            <PositionFilter
+              selectedPositions={filters.playerPosition || ''}
+              availablePositions={availableFilters.positions || []}
+              onChange={(value) => handleFilterChange('playerPosition', value)}
+            />
+          </div>
         </div>
 
         {/* Date Range */}

@@ -6,6 +6,7 @@ import TransactionExplorer from './pages/TransactionExplorer';
 import Analytics from './pages/Analytics';
 import Managers from './pages/Managers';
 import Home from './pages/Home';
+import DailyLineups from './pages/DailyLineups';
 import './App.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/transactions" element={<TransactionExplorer />} />
+            <Route path="/lineups" element={<DailyLineups />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/managers" element={<Managers />} />
           </Routes>

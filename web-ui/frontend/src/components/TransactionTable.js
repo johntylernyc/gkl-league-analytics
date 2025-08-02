@@ -96,7 +96,7 @@ const TransactionTable = ({ transactions, loading }) => {
                 </td>
                 <td className="table-cell text-gray-900">
                   <div className="max-w-xs truncate">
-                    {transaction.source_team_name || 'N/A'}
+                    {transaction.source_team_name || 'Free Agency'}
                   </div>
                   {transaction.source_team_key && (
                     <div className="text-xs text-gray-500">
@@ -106,7 +106,7 @@ const TransactionTable = ({ transactions, loading }) => {
                 </td>
                 <td className="table-cell text-gray-900">
                   <div className="max-w-xs truncate">
-                    {transaction.destination_team_name || 'N/A'}
+                    {transaction.destination_team_name || 'Free Agency'}
                   </div>
                   {transaction.destination_team_key && (
                     <div className="text-xs text-gray-500">

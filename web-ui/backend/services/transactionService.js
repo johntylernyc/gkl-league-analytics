@@ -14,7 +14,8 @@ class TransactionService {
       endDate = '',
       teamName = '',
       playerName = '',
-      playerPosition = ''
+      playerPosition = '',
+      playerTeam = ''
     } = options;
 
     let sql = `
@@ -109,13 +110,19 @@ class TransactionService {
       }
     }
 
+    if (playerTeam) {
+      sql += ` AND player_team = ?${paramIndex}`;
+      params.push(playerTeam);
+      paramIndex++;
+    }
+
     // Add ordering and pagination
     sql += ` ORDER BY date DESC, created_at DESC`;
     
     // Get total count for pagination
-    const countSql = sql.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) as count FROM');
+    const countSql = sql.replace(/SELECT[\s\S]*?FROM/, 'SELECT COUNT(*) as count FROM');
     const countResult = await database.get(countSql, params);
-    const totalCount = countResult.count;
+    const totalCount = countResult?.count || 0;
 
     // Add pagination
     const offset = (page - 1) * limit;
@@ -139,7 +146,7 @@ class TransactionService {
   async getStatistics() {
     const stats = await database.all(`
       SELECT 
-        COUNT(*) as total_transactions,
+        COUNT(DISTINCT transaction_id) as total_transactions,
         COUNT(DISTINCT player_id) as unique_players,
         COUNT(DISTINCT destination_team_name) + COUNT(DISTINCT source_team_name) as unique_teams,
         MIN(date) as earliest_date,
@@ -204,14 +211,17 @@ class TransactionService {
     `);
 
     const managerStats = await database.all(`
-      SELECT 
-        CASE 
-          WHEN destination_team_name IS NOT NULL THEN destination_team_name
-          ELSE source_team_name
-        END as team_name,
-        COUNT(*) as transaction_count
-      FROM transactions_production
-      WHERE (destination_team_name IS NOT NULL OR source_team_name IS NOT NULL)
+      WITH team_transactions AS (
+        SELECT DISTINCT transaction_id, destination_team_name as team_name 
+        FROM transactions_production 
+        WHERE destination_team_name IS NOT NULL
+        UNION
+        SELECT DISTINCT transaction_id, source_team_name as team_name 
+        FROM transactions_production 
+        WHERE source_team_name IS NOT NULL
+      )
+      SELECT team_name, COUNT(DISTINCT transaction_id) as transaction_count
+      FROM team_transactions
       GROUP BY team_name
       ORDER BY transaction_count DESC
     `);
@@ -279,11 +289,20 @@ class TransactionService {
     // Filter to only include valid positions that exist in the data
     const finalPositions = validPositions.filter(pos => positionSet.has(pos));
 
+    // Get unique MLB teams
+    const mlbTeams = await database.all(`
+      SELECT DISTINCT player_team 
+      FROM transactions_production 
+      WHERE player_team IS NOT NULL 
+      ORDER BY player_team
+    `);
+
     return {
       transactionTypes: transactionTypes.map(t => t.transaction_type),
       movementTypes: movementTypes.map(t => t.movement_type),
       teams: teams.map(t => t.team_name),
-      positions: finalPositions
+      positions: finalPositions,
+      mlbTeams: mlbTeams.map(t => t.player_team)
     };
   }
 

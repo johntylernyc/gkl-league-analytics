@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
       endDate: req.query.endDate || '',
       teamName: req.query.teamName || '',
       playerName: req.query.playerName || '',
-      playerPosition: req.query.playerPosition || ''
+      playerPosition: req.query.playerPosition || '',
+      playerTeam: req.query.playerTeam || ''
     };
 
     const result = await transactionService.getTransactions(options);

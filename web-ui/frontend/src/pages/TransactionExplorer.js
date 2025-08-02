@@ -87,14 +87,9 @@ const TransactionExplorer = () => {
             <div className="card">
               <div className="card-body text-center">
                 {stats.mostDroppedPlayer ? (
-                  <>
-                    <div className="text-xl font-bold text-warning-600 truncate">
-                      {stats.mostDroppedPlayer.player_name}
-                    </div>
-                    <div className="text-lg text-warning-500">
-                      {stats.mostDroppedPlayer.drop_count} drops
-                    </div>
-                  </>
+                  <div className="text-xl font-bold text-warning-600 truncate">
+                    {stats.mostDroppedPlayer.player_name}
+                  </div>
                 ) : (
                   <div className="text-2xl font-bold text-warning-600">N/A</div>
                 )}
@@ -137,7 +132,7 @@ const TransactionExplorer = () => {
       {/* Results Summary */}
       <div className="flex justify-between items-center">
         <div className="text-sm text-gray-600">
-          {loading ? 'Loading...' : `${pagination.total} transactions found`}
+          {loading ? 'Loading...' : `${pagination.total} rows`}
         </div>
         {Object.keys(filters).some(key => filters[key]) && (
           <button
