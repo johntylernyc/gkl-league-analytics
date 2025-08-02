@@ -31,8 +31,8 @@ This document outlines the staged development plan for the Daily Lineups feature
 - [ ] Set up test/production table separation
 
 **Deliverables**:
-- `database/schema_lineups.sql`
-- `database/migrate_lineups.py`
+- `daily_lineups/scripts/schema.sql`
+- `daily_lineups/scripts/migrate_lineups.py`
 - Updated database with new tables
 
 **Success Criteria**:

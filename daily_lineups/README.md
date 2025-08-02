@@ -33,16 +33,14 @@ daily_lineups/
 ├── job_manager.py            # Job logging integration
 ├── backfill_lineups.py       # Historical data collection
 ├── update_lineups.py         # Incremental updates
-├── database/
-│   ├── schema.sql            # Database schema
-│   └── migrate_lineups.py    # Migration scripts
+├── scripts/
+│   ├── schema.sql            # Database schema for lineup tables
+│   ├── validate_data.py      # Data validation
+│   └── export_lineups.py     # Export utilities
 ├── tests/
 │   ├── test_collector.py     # Unit tests
 │   ├── test_parser.py
 │   └── test_repository.py
-└── scripts/
-    ├── validate_data.py      # Data validation
-    └── export_lineups.py     # Export utilities
 ```
 
 ## Installation
@@ -63,7 +61,7 @@ pip install -r requirements.txt
 2. **Initialize Database**
 ```bash
 # Run from project root
-sqlite3 database/league_analytics.db < daily_lineups/database/schema.sql
+sqlite3 database/league_analytics.db < daily_lineups/scripts/schema.sql
 ```
 
 3. **Configure Authentication**
