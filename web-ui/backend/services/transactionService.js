@@ -151,12 +151,13 @@ class TransactionService {
   async getStatistics() {
     const stats = await database.all(`
       SELECT 
-        COUNT(DISTINCT transaction_id) as total_transactions,
+        MAX(CAST(transaction_id as INTEGER)) as total_transactions,
         COUNT(DISTINCT player_id) as unique_players,
         COUNT(DISTINCT destination_team_name) + COUNT(DISTINCT source_team_name) as unique_teams,
         MIN(date) as earliest_date,
         MAX(date) as latest_date
       FROM ${this.tableName}
+      WHERE transaction_type IN ('add', 'add/drop', 'trade')
     `);
 
     const typeBreakdown = await database.all(`
@@ -216,18 +217,25 @@ class TransactionService {
     `);
 
     const managerStats = await database.all(`
-      WITH team_transactions AS (
-        SELECT DISTINCT transaction_id, destination_team_name as team_name 
-        FROM ${this.tableName} 
-        WHERE destination_team_name IS NOT NULL
-        UNION
-        SELECT DISTINCT transaction_id, source_team_name as team_name 
-        FROM ${this.tableName} 
-        WHERE source_team_name IS NOT NULL
+      WITH all_team_transactions AS (
+        SELECT team_key, team_name, transaction_id
+        FROM (
+          SELECT destination_team_key as team_key, destination_team_name as team_name, transaction_id
+          FROM ${this.tableName} 
+          WHERE destination_team_key IS NOT NULL AND destination_team_key != ''
+            AND destination_team_name IS NOT NULL AND destination_team_name != ''
+            AND transaction_type IN ('add', 'add/drop', 'trade')
+          UNION ALL
+          SELECT source_team_key as team_key, source_team_name as team_name, transaction_id
+          FROM ${this.tableName} 
+          WHERE source_team_key IS NOT NULL AND source_team_key != ''
+            AND source_team_name IS NOT NULL AND source_team_name != ''
+            AND transaction_type IN ('add', 'add/drop', 'trade')
+        )
       )
       SELECT team_name, COUNT(DISTINCT transaction_id) as transaction_count
-      FROM team_transactions
-      GROUP BY team_name
+      FROM all_team_transactions
+      GROUP BY team_key, team_name
       ORDER BY transaction_count DESC
     `);
 
@@ -261,9 +269,9 @@ class TransactionService {
 
     const teams = await database.all(`
       SELECT DISTINCT team_name FROM (
-        SELECT destination_team_name as team_name FROM transactions_production WHERE destination_team_name IS NOT NULL
+        SELECT destination_team_name as team_name FROM ${this.tableName} WHERE destination_team_name IS NOT NULL
         UNION
-        SELECT source_team_name as team_name FROM transactions_production WHERE source_team_name IS NOT NULL
+        SELECT source_team_name as team_name FROM ${this.tableName} WHERE source_team_name IS NOT NULL
       ) 
       ORDER BY team_name
     `);

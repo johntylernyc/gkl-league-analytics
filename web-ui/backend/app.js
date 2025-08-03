@@ -6,6 +6,7 @@ const database = require('./services/database');
 // Import routes
 const transactionsRoutes = require('./routes/transactions');
 const analyticsRoutes = require('./routes/analytics');
+const playerSpotlightRoutes = require('./routes/playerSpotlight');
 
 let lineupsRoutes;
 try {
@@ -46,6 +47,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/players', playerSpotlightRoutes);
 
 if (lineupsRoutes) {
   app.use('/api/lineups', lineupsRoutes);
@@ -71,7 +73,11 @@ app.get('/', (req, res) => {
       lineupTeams: '/api/lineups/teams',
       lineupsByDate: '/api/lineups/date/{date}',
       teamLineup: '/api/lineups/team/{teamKey}/date/{date}',
-      playerHistory: '/api/lineups/player/{playerId}/history'
+      playerHistory: '/api/lineups/player/{playerId}/history',
+      playerSpotlight: '/api/players/{playerId}/spotlight',
+      playerTimeline: '/api/players/{playerId}/timeline',
+      playerSeasons: '/api/players/{playerId}/seasons',
+      playerSearch: '/api/players/search'
     }
   });
 });

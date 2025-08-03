@@ -1,6 +1,6 @@
 # PRD: Daily Player Stats Data Ingestion
 
-*Synced from Notion on 2025-08-03 12:22:50*
+*Synced from Notion on 2025-08-03 15:18:26*
 
 *Page ID: 2441a736-211e-81b0-ac01-d9de7a715510*
 
@@ -10,15 +10,17 @@
 
 **Date:** August 3, 2025
 
-**Status:** Draft
+**Status:** Approved
 
-**Version:** 1.0
+**Version:** 2.0
 
 ---
 
 ## Executive Summary
 
-The Daily Player Stats Data Ingestion feature will systematically collect and store MLB player performance statistics for every player in our database across each day of the 2025 MLB season. By leveraging pybaseball's comprehensive data access to Fangraphs, Baseball Reference, and Statcast, this feature will create a foundational data layer that powers advanced analytics, player comparisons, and performance tracking aligned with our league's specific scoring categories.
+The Daily Player Stats Data Ingestion feature will systematically collect and store MLB player performance statistics for every player in our database across each day of each season in our database, when there is player data for those seasons and dates. 
+
+By leveraging pybaseball's comprehensive data access to Fangraphs, Baseball Reference, and Statcast, this feature will create a foundational data layer that powers advanced analytics, player comparisons, and performance tracking aligned with our league's specific scoring categories.
 
 ## Problem Statement
 
@@ -85,6 +87,18 @@ The Daily Player Stats Data Ingestion feature will systematically collect and st
 1. **Performance Optimization**
 
 ## Technical Requirements
+
+Generally, the method for retrieving data will be as follows: 
+
+1. Get the current date in the real world. 
+
+1. The way the `batting_stats_range()` and `pitching_stats_range()` functions work is that they supply *aggregate* stats during the date range. So, if we want player batting stats for all days between 2025-04-01 and 2025-04-07, we would need to call each date individually, i.e., start_date = 2025-04-01, end_date = 2025-04-01 and do this for each date in the range. 
+
+1. The `batting_stats_range()` and `pitching_stats_range()` functions will return all data for all players on the given date. We need to store this information in a staging table `mlb_batting_stats_staging` and `mlb_pitching_stats_staging` so that we can join it to the players in our database in a `daily_gkl_player_stats` table that contains all stats data for both pitchers and batters. 
+
+1. The `player_id` in our application tables is the Yahoo Player ID for that player. This ID does not exist in pybaseball and so we will need to do a player lookup. 
+
+1. Using the player lookup and the stats staging tables we built, we should create and populate a `daily_gkl_player_stats` table that contains all stats for all days for all players in our `daily_lineups` table, ignoring future dates. 
 
 ### Data Sources and Methods
 

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLineups } from '../hooks/useLineups';
 import DateNavigator from '../components/lineups/DateNavigator';
 import TeamSelector from '../components/lineups/TeamSelector';
@@ -6,6 +7,9 @@ import LineupGrid from '../components/lineups/LineupGrid';
 import PlayerDetailsModal from '../components/lineups/PlayerDetailsModal';
 
 const DailyLineups = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
   const {
     lineups,
     teams,
@@ -26,9 +30,18 @@ const DailyLineups = () => {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Handle URL parameters for date
+  useEffect(() => {
+    const urlDate = searchParams.get('date');
+    if (urlDate && urlDate !== selectedDate) {
+      setSelectedDate(urlDate);
+    }
+  }, [searchParams, selectedDate, setSelectedDate]);
+
   const handlePlayerClick = (player) => {
-    setSelectedPlayer(player);
-    setIsModalOpen(true);
+    // Navigate to player spotlight page with current date as context
+    const currentDate = selectedDate || new Date().toISOString().split('T')[0];
+    navigate(`/lineups/player/${player.player_id}?date=${currentDate}&season=2025`);
   };
 
   const closeModal = () => {

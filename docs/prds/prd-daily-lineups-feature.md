@@ -1,6 +1,6 @@
 # PRD: Daily Lineups Feature
 
-*Synced from Notion on 2025-08-03 12:22:49*
+*Synced from Notion on 2025-08-03 15:18:16*
 
 *Page ID: 2431a736-211e-81a9-9b13-d36af56b4da8*
 
@@ -10,7 +10,7 @@
 
 **Date:** August 2, 2025
 
-**Status:** Draft
+**Status:** Implemented
 
 **Version:** 1.0
 

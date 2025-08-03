@@ -16,6 +16,7 @@ import signal
 import atexit
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
+from datetime import timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from auth import config
@@ -331,6 +332,288 @@ def init_database(environment=None, validate_only=False):
     
     conn.commit()
     conn.close()
+
+# === INCREMENTAL UPDATE FUNCTIONS ===
+def get_latest_transaction_date(environment=None, league_key=None):
+    """
+    Get the most recent transaction date from the database.
+    
+    Args:
+        environment: Database environment (test/production)
+        league_key: League key to filter by (optional)
+    
+    Returns:
+        str: Latest transaction date in YYYY-MM-DD format, or None if no transactions
+    """
+    env = get_environment(environment)
+    db_path = get_database_path(env)
+    table_name = get_table_name('transactions', env)
+    
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        if league_key:
+            query = f"""
+                SELECT MAX(date) 
+                FROM {table_name} 
+                WHERE league_key = ?
+            """
+            cursor.execute(query, (league_key,))
+        else:
+            query = f"SELECT MAX(date) FROM {table_name}"
+            cursor.execute(query)
+        
+        result = cursor.fetchone()
+        latest_date = result[0] if result and result[0] else None
+        
+        conn.close()
+        
+        if latest_date:
+            logging.info(f"Latest transaction date in {env}: {latest_date}")
+        else:
+            logging.info(f"No transactions found in {env} database")
+            
+        return latest_date
+        
+    except Exception as e:
+        logging.error(f"Error getting latest transaction date: {e}")
+        return None
+
+def get_date_range_for_update(environment=None, league_key=None, max_days_back=30):
+    """
+    Determine the date range for incremental updates.
+    
+    Args:
+        environment: Database environment (test/production)
+        league_key: League key to check
+        max_days_back: Maximum days to look back from today
+    
+    Returns:
+        tuple: (start_date, end_date) in YYYY-MM-DD format
+    """
+    # Get latest transaction date from database
+    latest_date = get_latest_transaction_date(environment, league_key)
+    
+    # Calculate date range
+    today = datetime.datetime.now().date()
+    
+    if latest_date:
+        # Start from the day after latest transaction
+        latest = datetime.datetime.strptime(latest_date, '%Y-%m-%d').date()
+        start_date = latest + timedelta(days=1)
+        
+        # Don't go too far back to avoid excessive API calls
+        earliest_allowed = today - timedelta(days=max_days_back)
+        if start_date < earliest_allowed:
+            start_date = earliest_allowed
+            logging.warning(f"Limiting update range to {max_days_back} days back")
+    else:
+        # No existing data, start from recent period
+        start_date = today - timedelta(days=max_days_back)
+        logging.info("No existing transactions, starting incremental update from recent period")
+    
+    # End date is today
+    end_date = today
+    
+    # Don't update if start date is after end date
+    if start_date > end_date:
+        logging.info("Database is already up to date")
+        return None, None
+    
+    start_str = start_date.strftime('%Y-%m-%d')
+    end_str = end_date.strftime('%Y-%m-%d')
+    
+    logging.info(f"Incremental update range: {start_str} to {end_str}")
+    return start_str, end_str
+
+def run_incremental_update(environment=None, league_key=None, max_days_back=30):
+    """
+    Run an incremental update to collect new transactions since the last update.
+    
+    Args:
+        environment: Database environment (test/production) 
+        league_key: League key to update
+        max_days_back: Maximum days to look back
+    
+    Returns:
+        dict: Update results with counts and status
+    """
+    # Initialize database
+    init_database(environment)
+    
+    # Get league key if not provided
+    if not league_key:
+        current_year = datetime.datetime.now().year
+        league_key = get_league_key(current_year)
+    
+    # Determine date range for update
+    start_date, end_date = get_date_range_for_update(environment, league_key, max_days_back)
+    
+    if not start_date or not end_date:
+        return {
+            'status': 'up_to_date',
+            'message': 'Database is already current',
+            'transactions_added': 0
+        }
+    
+    # Start job logging
+    job_id = start_job_log(
+        job_type="transaction_update_incremental",
+        environment=get_environment(environment),
+        date_range_start=start_date,
+        date_range_end=end_date,
+        league_key=league_key,
+        metadata=f"Incremental update, max_days_back={max_days_back}"
+    )
+    
+    try:
+        # Initialize token manager
+        token_manager = TokenManager()
+        
+        # Collect transactions for date range
+        all_transactions = []
+        current_date = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_obj = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        while current_date <= end_date_obj:
+            date_str = current_date.strftime('%Y-%m-%d')
+            logging.info(f"Fetching incremental data for {date_str}")
+            
+            try:
+                xml_data = fetch_transactions_for_date(token_manager, league_key, date_str, job_id)
+                
+                if xml_data:
+                    # Parse transactions for this date
+                    date_transactions = parse_transaction_xml(xml_data, date_str, league_key, job_id)
+                    all_transactions.extend(date_transactions)
+                    logging.info(f"Found {len(date_transactions)} transactions for {date_str}")
+                
+                # Rate limiting
+                sleep(DEFAULT_SLEEP_TIME)
+                
+            except Exception as e:
+                logging.error(f"Error fetching data for {date_str}: {e}")
+                # Continue with next date
+            
+            current_date += timedelta(days=1)
+        
+        # Insert all transactions
+        if all_transactions:
+            inserted_count = batch_insert_transactions(all_transactions, environment)
+            logging.info(f"Incremental update inserted {inserted_count} new transactions")
+            
+            update_job_log(job_id, 'completed', 
+                         records_processed=len(all_transactions),
+                         records_inserted=inserted_count)
+            
+            return {
+                'status': 'success',
+                'message': f'Added {inserted_count} new transactions',
+                'transactions_added': inserted_count,
+                'date_range': f'{start_date} to {end_date}'
+            }
+        else:
+            logging.info("No new transactions found in incremental update")
+            update_job_log(job_id, 'completed', records_processed=0, records_inserted=0)
+            
+            return {
+                'status': 'no_new_data',
+                'message': 'No new transactions found',
+                'transactions_added': 0,
+                'date_range': f'{start_date} to {end_date}'
+            }
+            
+    except Exception as e:
+        error_msg = f"Incremental update failed: {e}"
+        logging.error(error_msg)
+        update_job_log(job_id, 'failed', error_message=error_msg)
+        
+        return {
+            'status': 'error',
+            'message': error_msg,
+            'transactions_added': 0
+        }
+
+def parse_transaction_xml(xml_data, date_str, league_key, job_id):
+    """
+    Parse transaction XML data into structured records.
+    
+    Args:
+        xml_data: Raw XML response from Yahoo API
+        date_str: Date string in YYYY-MM-DD format
+        league_key: League identifier
+        job_id: Job ID for tracking
+    
+    Returns:
+        list: List of transaction dictionaries
+    """
+    transactions = []
+    
+    try:
+        root = ET.fromstring(xml_data)
+        ns = {'fantasy': 'http://fantasysports.yahooapis.com/fantasy/v2/base.rng'}
+        
+        transaction_elements = root.findall('.//fantasy:transaction', ns)
+        
+        for trans_elem in transaction_elements:
+            trans_id = trans_elem.find('.//fantasy:transaction_id', ns)
+            trans_type = trans_elem.find('.//fantasy:type', ns)
+            timestamp_elem = trans_elem.find('.//fantasy:timestamp', ns)
+            
+            # Get timestamp
+            timestamp = None
+            if timestamp_elem is not None:
+                try:
+                    timestamp = datetime.datetime.fromtimestamp(int(timestamp_elem.text))
+                except:
+                    timestamp = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+            else:
+                timestamp = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+            
+            # Process players
+            players = trans_elem.findall('.//fantasy:player', ns)
+            
+            for player in players:
+                player_id_elem = player.find('.//fantasy:player_id', ns)
+                player_name_elem = player.find('.//fantasy:full', ns)
+                player_team_elem = player.find('.//fantasy:editorial_team_abbr', ns)
+                player_pos_elem = player.find('.//fantasy:display_position', ns)
+                
+                # Get transaction data
+                trans_data = player.find('.//fantasy:transaction_data', ns)
+                
+                if trans_data is not None:
+                    move_type_elem = trans_data.find('.//fantasy:type', ns)
+                    source_team_elem = trans_data.find('.//fantasy:source_team_name', ns)
+                    dest_team_elem = trans_data.find('.//fantasy:destination_team_name', ns)
+                    source_team_key_elem = trans_data.find('.//fantasy:source_team_key', ns)
+                    dest_team_key_elem = trans_data.find('.//fantasy:destination_team_key', ns)
+                    
+                    transaction = {
+                        'date': date_str,
+                        'league_key': league_key,
+                        'transaction_id': trans_id.text if trans_id is not None else '',
+                        'transaction_type': trans_type.text if trans_type is not None else '',
+                        'player_id': player_id_elem.text if player_id_elem is not None else '',
+                        'player_name': player_name_elem.text if player_name_elem is not None else '',
+                        'player_position': player_pos_elem.text if player_pos_elem is not None else '',
+                        'player_team': player_team_elem.text if player_team_elem is not None else '',
+                        'movement_type': move_type_elem.text if move_type_elem is not None else '',
+                        'destination_team_key': dest_team_key_elem.text if dest_team_key_elem is not None else '',
+                        'destination_team_name': dest_team_elem.text if dest_team_elem is not None else '',
+                        'source_team_key': source_team_key_elem.text if source_team_key_elem is not None else '',
+                        'source_team_name': source_team_elem.text if source_team_elem is not None else '',
+                        'job_id': job_id
+                    }
+                    
+                    transactions.append(transaction)
+    
+    except Exception as e:
+        logging.error(f"Error parsing transaction XML: {e}")
+        raise
+    
+    return transactions
 
 # === JOB LOGGING FUNCTIONS ===
 def start_job_log(job_type, environment, date_range_start, date_range_end, league_key, metadata=None):

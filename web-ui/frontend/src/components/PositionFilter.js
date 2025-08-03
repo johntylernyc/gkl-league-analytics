@@ -105,12 +105,6 @@ const PositionFilter = ({ selectedPositions = [], availablePositions = [], onCha
         ))}
       </div>
 
-      {/* Selected positions display */}
-      {selectedArray.length > 0 && (
-        <div className="text-xs text-gray-600">
-          Selected: {selectedArray.join(', ')}
-        </div>
-      )}
     </div>
   );
 };

@@ -17,9 +17,11 @@ export const useLineups = () => {
       try {
         const dates = await apiService.getLineupDates();
         setAvailableDates(dates);
-        // Set most recent date as default
+        // Set current date as default, or most recent if current date not available
         if (dates && dates.length > 0) {
-          setSelectedDate(dates[0]);
+          const today = new Date().toISOString().split('T')[0];
+          const hasToday = dates.includes(today);
+          setSelectedDate(hasToday ? today : dates[0]);
         }
       } catch (err) {
         console.error('Failed to fetch dates:', err);
@@ -36,10 +38,8 @@ export const useLineups = () => {
       try {
         const teamsData = await apiService.getTeams();
         setTeams(teamsData);
-        // Set first team as default
-        if (teamsData && teamsData.length > 0) {
-          setSelectedTeam(teamsData[0].team_key);
-        }
+        // Set "All Teams" as default (null value)
+        setSelectedTeam(null);
       } catch (err) {
         console.error('Failed to fetch teams:', err);
         setError('Failed to load teams');

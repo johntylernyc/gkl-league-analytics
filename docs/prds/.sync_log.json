@@ -1,5 +1,10 @@
 {
-  "last_sync": "2025-08-03T12:22:50.855842",
+  "last_sync": "2025-08-03T15:18:26.675017",
   "page_id": "2431a736211e80fcbb88fe5de9652180",
-  "files_synced": 4
+  "files_synced": 5,
+  "conflicts_detected": 0,
+  "conflict_strategy": "manual",
+  "bidirectional": true,
+  "total_notion_pages": 5,
+  "total_local_files": 5
 }

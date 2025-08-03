@@ -91,6 +91,29 @@ class ApiService {
     const queryString = new URLSearchParams({ q: query }).toString();
     return this.request(`/api/lineups/search?${queryString}`);
   }
+
+  // Player Spotlight methods
+  async getPlayerSpotlight(playerId, season = 2025) {
+    const params = { season };
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/players/${playerId}/spotlight?${queryString}`);
+  }
+
+  async getPlayerTimeline(playerId, season = 2025, granularity = 'day') {
+    const params = { season, granularity };
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/players/${playerId}/timeline?${queryString}`);
+  }
+
+  async getPlayerSeasons(playerId) {
+    return this.request(`/api/players/${playerId}/seasons`);
+  }
+
+  async searchSpotlightPlayers(query) {
+    const params = { q: query };
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/players/search?${queryString}`);
+  }
 }
 
 export default new ApiService();

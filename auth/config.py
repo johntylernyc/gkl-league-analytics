@@ -4,20 +4,36 @@ Uses centralized league keys and season dates from metadata module.
 """
 
 import sys
+import os
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("Warning: python-dotenv not installed. Install with: pip install python-dotenv")
+    pass
 
 # Import centralized league configuration
 from metadata.league_keys import LEAGUE_KEYS, SEASON_DATES
 from common.season_manager import get_league_key, get_current_season
 
 # ---- OAUTH CONFIGURATION ----
-CLIENT_ID = 'dj0yJmk9dmdPQ2liVDlsZ3FZJmQ9WVdrOVNYZGxhRk5sWlhZbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PWNk'
-CLIENT_SECRET = 'ab151cb088ae17856e532a59f5705abae6617dcd'
-REDIRECT_URI = 'https://createdbydata.com'
-AUTHORIZATION_CODE = 'ajvupw4rq3ggvf53hk4u4yskpbxq9qsq'
+# Load from environment variables for security
+CLIENT_ID = os.getenv('YAHOO_CLIENT_ID')
+CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET')
+REDIRECT_URI = os.getenv('YAHOO_REDIRECT_URI', 'https://createdbydata.com')
+AUTHORIZATION_CODE = os.getenv('YAHOO_AUTHORIZATION_CODE')
+
+# Validate required environment variables
+required_vars = ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET', 'YAHOO_AUTHORIZATION_CODE']
+missing_vars = [var for var in required_vars if not os.getenv(var)]
+if missing_vars:
+    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}. Please create .env file with these variables.")
 
 # ---- API ENDPOINTS ----
 TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token'

@@ -53,6 +53,8 @@ auth/*.pem
 config_local.py
 secrets.json
 credentials/
+auth/config.py
+scripts/sync_notion_prds.py
 
 # Database
 *.db
