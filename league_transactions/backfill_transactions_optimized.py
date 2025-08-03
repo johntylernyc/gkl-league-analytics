@@ -11,11 +11,19 @@ import time
 import sqlite3
 import threading
 import queue
+import platform
+import signal
+import atexit
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from auth import config
+from config.database_config import get_database_path, get_table_name, get_environment
+
+# Import centralized league configuration
+from metadata.league_keys import LEAGUE_KEYS, SEASON_DATES
+from common.season_manager import SeasonManager, get_league_key, get_season_dates
 
 # === CONFIG ===
 CLIENT_ID = config.CLIENT_ID
@@ -27,7 +35,8 @@ BASE_FANTASY_URL = config.BASE_FANTASY_URL
 script_dir = os.path.dirname(os.path.abspath(__file__))
 CHECKPOINT_FILE = os.path.join(script_dir, "resume_transactions.json")
 log_file_path = os.path.join(script_dir, 'fetch_transactions.log')
-DB_FILE = os.path.join(script_dir, '..', 'database', 'league_analytics.db')
+# DB_FILE now determined by environment
+DB_FILE = None  # Will be set dynamically based on environment
 
 logging.basicConfig(filename=log_file_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -44,30 +53,9 @@ TEST_SCENARIOS = {
     "large": ("2025-04-01", "2025-05-01"),    # 1 month
 }
 
-SEASON_DATES = {
-    2025: ("2025-03-27", "2025-09-28")
-   #  2024: "431.l.41728",
-   #  2023: "422.l.54537",
-   #  2022: "412.l.34665",
-   #  2021: "404.l.54012",
-   #  2020: "398.l.35682",
-   #  2019: "388.l.34240",
-   #  2018: "378.l.19344",
-   #  2017: "370.l.36931",
-   #  2016: "357.l.62816",
-   #  2015: "346.l.48624",
-   #  2014: "328.l.36901",
-   #  2013: "308.l.43210",
-   #  2012: "268.l.24275",
-   #  2011: "253.l.58530",
-   #  2010: "238.l.174722",
-   #  2009: "215.l.75484",
-   #  2008: "195.l.181050",
-}
-
-LEAGUE_KEYS = {
-    2025: "mlb.l.6966"
-}
+# League keys and season dates now imported from centralized metadata module
+# Initialize season manager for multi-season support
+season_manager = SeasonManager()
 
 # === RATE LIMITING ===
 class RateLimiter:
@@ -137,10 +125,125 @@ class TokenManager:
             self.refresh_token = tokens['refresh_token']
         self._refresh_tokens()
 
+# === COMPATIBILITY CHECKS ===
+def check_sqlite_version():
+    """Verify SQLite version meets requirements."""
+    version = sqlite3.sqlite_version
+    major, minor, patch = map(int, version.split('.'))
+    
+    if (major, minor, patch) < (3, 8, 2):
+        logging.warning(f"SQLite version {version} is below recommended 3.8.2")
+        return False
+    return True
+
+def check_wal_compatibility(db_path):
+    """Check if database location supports WAL mode."""
+    # Check if database is on network filesystem (not recommended for WAL)
+    if platform.system() == 'Windows':
+        # Check for network path
+        if db_path.startswith(r'\\'):
+            logging.warning("Database on network path - WAL mode may have issues")
+            return False
+    
+    # Check write permissions for WAL files
+    db_dir = os.path.dirname(db_path)
+    test_wal = os.path.join(db_dir, '.wal_test')
+    try:
+        with open(test_wal, 'w') as f:
+            f.write('test')
+        os.remove(test_wal)
+        return True
+    except Exception as e:
+        logging.error(f"Cannot write WAL files to {db_dir}: {e}")
+        return False
+
 # === DATABASE OPERATIONS ===
-def init_database():
+def init_database(environment=None, validate_only=False):
+    """
+    Initialize database with optional optimizations based on feature flags.
+    
+    Args:
+        environment: Database environment (test/production)
+        validate_only: If True, only validate without applying changes
+    """
+    global DB_FILE
+    env = get_environment(environment)
+    DB_FILE = str(get_database_path(env))
+    
+    # Import feature flags
+    try:
+        from database.feature_flags import get_feature_flags
+        feature_flags = get_feature_flags()
+    except ImportError:
+        logging.info("Feature flags module not found, using default settings")
+        feature_flags = None
+    
+    # Validation phase
+    if not check_sqlite_version():
+        logging.warning("SQLite version check failed")
+    
+    if validate_only:
+        print("Validation mode - checking compatibility...")
+        wal_compatible = check_wal_compatibility(DB_FILE)
+        print(f"WAL compatibility: {'✅' if wal_compatible else '❌'}")
+        print(f"SQLite version: {sqlite3.sqlite_version}")
+        return
+    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    
+    # Apply optimizations based on feature flags
+    optimizations_applied = []
+    
+    if feature_flags and feature_flags.is_enabled('pragma_optimizations'):
+        # Start with conservative settings
+        cursor.execute("PRAGMA busy_timeout = 5000")
+        cursor.execute("PRAGMA synchronous = NORMAL")
+        optimizations_applied.append("busy_timeout=5000")
+        optimizations_applied.append("synchronous=NORMAL")
+        
+        if feature_flags.is_enabled('aggressive_caching'):
+            cursor.execute("PRAGMA cache_size = -64000")  # 64MB
+            cursor.execute("PRAGMA temp_store = MEMORY")
+            cursor.execute("PRAGMA mmap_size = 268435456")  # 256MB
+            optimizations_applied.extend(["cache=64MB", "temp_store=MEMORY", "mmap=256MB"])
+        else:
+            # Conservative caching
+            cursor.execute("PRAGMA cache_size = -16000")  # 16MB
+            optimizations_applied.append("cache=16MB")
+    
+    if feature_flags and feature_flags.is_enabled('wal_mode'):
+        # Only enable WAL if compatibility check passes
+        if check_wal_compatibility(DB_FILE):
+            result = cursor.execute("PRAGMA journal_mode = WAL").fetchone()
+            if result and result[0].upper() == 'WAL':
+                optimizations_applied.append("WAL mode")
+                logging.info("WAL mode enabled successfully")
+            else:
+                logging.error(f"Failed to enable WAL mode, got: {result}")
+                if feature_flags:
+                    feature_flags.disable('wal_mode')  # Auto-disable on failure
+        else:
+            logging.warning("WAL mode skipped due to compatibility issues")
+    
+    # Log applied optimizations
+    if optimizations_applied:
+        logging.info(f"SQLite optimizations applied: {', '.join(optimizations_applied)}")
+        print(f"Database optimizations: {', '.join(optimizations_applied)}")
+    else:
+        logging.info("Running with default SQLite settings")
+        print("Running with default SQLite settings (optimizations disabled)")
+    
+    # Verify settings
+    for pragma in ['busy_timeout', 'journal_mode', 'synchronous', 'cache_size']:
+        try:
+            result = cursor.execute(f"PRAGMA {pragma}").fetchone()
+            logging.debug(f"PRAGMA {pragma} = {result}")
+        except Exception as e:
+            logging.error(f"Error reading PRAGMA {pragma}: {e}")
+    
+    print(f"Initializing database for environment: {env}")
+    print(f"Database path: {DB_FILE}")
     
     # Create job logging table
     cursor.execute('''
@@ -165,13 +268,16 @@ def init_database():
     
     # Note: fantasy_teams lookup table removed in favor of direct team storage in transactions
     
-    # Check existing columns in test table
-    cursor.execute("PRAGMA table_info(transactions_test)")
-    test_columns = [column[1] for column in cursor.fetchall()]
+    # Get the appropriate table name based on environment
+    table_name = get_table_name('transactions', env)
     
-    # Create test transactions table with new schema
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions_test (
+    # Check existing columns
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = [column[1] for column in cursor.fetchall()]
+    
+    # Create transactions table with new schema
+    cursor.execute(f'''
+        CREATE TABLE IF NOT EXISTS {table_name} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             league_key TEXT NOT NULL,
@@ -192,7 +298,7 @@ def init_database():
         )
     ''')
     
-    # Add required columns to existing test table if they don't exist
+    # Add required columns to existing table if they don't exist
     required_columns = [
         ('player_position', 'TEXT'),
         ('destination_team_key', 'TEXT'),
@@ -203,42 +309,9 @@ def init_database():
     ]
     
     for col_name, col_type in required_columns:
-        if col_name not in test_columns:
-            cursor.execute(f'ALTER TABLE transactions_test ADD COLUMN {col_name} {col_type}')
-            print(f"Added column {col_name} to transactions_test")
-    
-    # Check existing columns in production table
-    cursor.execute("PRAGMA table_info(transactions_production)")
-    prod_columns = [column[1] for column in cursor.fetchall()]
-    
-    # Create production transactions table with new schema
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions_production (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            league_key TEXT NOT NULL,
-            transaction_id TEXT NOT NULL,
-            transaction_type TEXT NOT NULL,
-            player_id TEXT NOT NULL,
-            player_name TEXT NOT NULL,
-            player_position TEXT,
-            player_team TEXT,
-            movement_type TEXT NOT NULL,
-            destination_team_key TEXT,
-            destination_team_name TEXT,
-            source_team_key TEXT,
-            source_team_name TEXT,
-            job_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(transaction_id, player_id, movement_type)
-        )
-    ''')
-    
-    # Add required columns to existing production table if they don't exist
-    for col_name, col_type in required_columns:
-        if col_name not in prod_columns:
-            cursor.execute(f'ALTER TABLE transactions_production ADD COLUMN {col_name} {col_type}')
-            print(f"Added column {col_name} to transactions_production")
+        if col_name not in existing_columns:
+            cursor.execute(f'ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}')
+            print(f"Added column {col_name} to {table_name}")
     
     # Create indexes for job log
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_log_type ON job_log(job_type)')
@@ -248,21 +321,13 @@ def init_database():
     
     # Note: fantasy_teams indexes removed - no longer using lookup table
     
-    # Create indexes for test table
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_date ON transactions_test(date)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_league ON transactions_test(league_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_player ON transactions_test(player_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_dest_team ON transactions_test(destination_team_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_source_team ON transactions_test(source_team_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_test_job ON transactions_test(job_id)')
-    
-    # Create indexes for production table
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_date ON transactions_production(date)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_league ON transactions_production(league_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_player ON transactions_production(player_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_dest_team ON transactions_production(destination_team_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_source_team ON transactions_production(source_team_key)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_production_job ON transactions_production(job_id)')
+    # Create indexes for transactions table
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_date ON {table_name}(date)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_league ON {table_name}(league_key)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_player ON {table_name}(player_id)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_dest_team ON {table_name}(destination_team_key)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_source_team ON {table_name}(source_team_key)')
+    cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_job ON {table_name}(job_id)')
     
     conn.commit()
     conn.close()
@@ -271,6 +336,11 @@ def init_database():
 def start_job_log(job_type, environment, date_range_start, date_range_end, league_key, metadata=None):
     """Start a new job log entry and return job_id"""
     import uuid
+    
+    # Ensure DB_FILE is set for the environment
+    global DB_FILE
+    if DB_FILE is None:
+        DB_FILE = str(get_database_path(environment))
     
     job_id = f"{job_type}_{environment}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
     
@@ -291,6 +361,10 @@ def start_job_log(job_type, environment, date_range_start, date_range_end, leagu
 
 def update_job_log(job_id, status, records_processed=None, records_inserted=None, error_message=None):
     """Update job log with progress or completion"""
+    # Ensure DB_FILE is set
+    if DB_FILE is None:
+        raise RuntimeError("DB_FILE not initialized. Call init_database() first.")
+    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
@@ -329,6 +403,10 @@ def update_job_log(job_id, status, records_processed=None, records_inserted=None
 
 def get_job_summary():
     """Get summary of recent jobs for reporting"""
+    # Ensure DB_FILE is set
+    if DB_FILE is None:
+        raise RuntimeError("DB_FILE not initialized. Call init_database() first.")
+    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
@@ -347,35 +425,89 @@ def get_job_summary():
 
     # Note: batch_insert_fantasy_teams function removed - no longer using lookup table approach
 
-def batch_insert_transactions(transaction_list, environment='production'):
+def batch_insert_transactions(transaction_list, environment=None, use_new_system=None):
+    """
+    Insert transactions in batch with optional new transaction management.
+    
+    Args:
+        transaction_list: List of transactions to insert
+        environment: Database environment
+        use_new_system: Override feature flag (for testing)
+    """
     if not transaction_list:
         return 0
     
-    # Select table based on environment
-    table_name = f"transactions_{environment}"
+    # Get environment and table name
+    env = get_environment(environment)
+    table_name = get_table_name('transactions', env)
     
+    # Import feature flags and db_utils if available
+    try:
+        from database.feature_flags import get_feature_flags
+        from database.db_utils import DatabaseConnection, transaction, retry_on_lock
+        feature_flags = get_feature_flags()
+        has_new_features = True
+    except ImportError:
+        has_new_features = False
+        feature_flags = None
+    
+    # Determine which system to use
+    use_new = use_new_system if use_new_system is not None else \
+              (has_new_features and feature_flags and \
+               (feature_flags.is_enabled('explicit_transactions') or \
+                feature_flags.is_enabled('retry_logic')))
+    
+    # Prepare batch insert data
+    data_tuples = []
+    for trans in transaction_list:
+        data_tuples.append((
+            trans["date"],
+            trans["league_key"],
+            trans["transaction_id"],
+            trans["transaction_type"],
+            trans["player_id"],
+            trans["player_name"],
+            trans["player_position"],
+            trans["player_team"],
+            trans["movement_type"],
+            trans["destination_team_key"],
+            trans["destination_team_name"],
+            trans["source_team_key"],
+            trans["source_team_name"],
+            trans["job_id"]
+        ))
+    
+    if use_new and has_new_features:
+        # New system with enhanced features
+        @retry_on_lock(max_attempts=5, initial_delay=0.1, operation_name=f"batch_insert_{table_name}")
+        def insert_with_new_system():
+            with DatabaseConnection(DB_FILE) as conn:
+                cursor = conn.cursor()
+                
+                # Use explicit transaction for batch insert
+                with transaction(conn, timeout_override=10.0):  # Longer timeout for batch
+                    cursor.executemany(f'''
+                        INSERT OR IGNORE INTO {table_name} 
+                        (date, league_key, transaction_id, transaction_type, player_id, 
+                         player_name, player_position, player_team, movement_type,
+                         destination_team_key, destination_team_name, source_team_key, 
+                         source_team_name, job_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', data_tuples)
+                    
+                    inserted_count = cursor.rowcount
+                    logging.info(f"Batch inserted {inserted_count} transactions (new system)")
+                    return inserted_count
+        
+        try:
+            return insert_with_new_system()
+        except Exception as e:
+            logging.error(f"New system failed: {e}, falling back to legacy system")
+            # Fall through to old system
+    
+    # Legacy system (current implementation) - kept for compatibility
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # Prepare batch insert with new simplified schema
-    data_tuples = []
-    for transaction in transaction_list:
-        data_tuples.append((
-            transaction["date"],
-            transaction["league_key"],
-            transaction["transaction_id"],
-            transaction["transaction_type"],
-            transaction["player_id"],
-            transaction["player_name"],
-            transaction["player_position"],
-            transaction["player_team"],
-            transaction["movement_type"],
-            transaction["destination_team_key"],
-            transaction["destination_team_name"],
-            transaction["source_team_key"],
-            transaction["source_team_name"],
-            transaction["job_id"]
-        ))
     
     try:
         cursor.executemany(f'''
@@ -388,7 +520,7 @@ def batch_insert_transactions(transaction_list, environment='production'):
         
         inserted_count = cursor.rowcount
         conn.commit()
-        logging.info(f"Batch inserted {inserted_count} transactions to {table_name}")
+        logging.info(f"Batch inserted {inserted_count} transactions (legacy system)")
         return inserted_count
     except sqlite3.Error as e:
         logging.error(f"Error batch inserting transactions to {table_name}: {e}")
@@ -569,80 +701,240 @@ def benchmark_scenario(scenario_name, start_date_str, end_date_str, league_key, 
         raise
 
 # === CONFIGURATION ===
-# Set environment: 'test' for validation, 'production' for full collection
-ENVIRONMENT = 'production'  # Changed to production for full data collection
-
+# Environment determined by DATA_ENV environment variable or command line
 # Date configurations
 TEST_DATE_RANGE = ("2025-07-25", "2025-08-01")  # 1 week for validation
 PRODUCTION_DATE_RANGE = ("2025-03-27", "2025-08-02")  # Full 2025 season YTD
 
+# === CONNECTION CLEANUP ===
+def cleanup_database_connections():
+    """Cleanup function to ensure all database connections are closed safely."""
+    global DB_FILE
+    if not DB_FILE:
+        return
+    
+    try:
+        from database.feature_flags import get_feature_flags
+        feature_flags = get_feature_flags()
+    except ImportError:
+        feature_flags = None
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        
+        # Only checkpoint if WAL mode is enabled
+        if feature_flags and feature_flags.is_enabled('wal_mode'):
+            # Check if actually in WAL mode
+            mode = conn.execute("PRAGMA journal_mode").fetchone()
+            if mode and mode[0].upper() == 'WAL':
+                # Checkpoint but don't truncate (safer)
+                result = conn.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
+                logging.info(f"WAL checkpoint completed: {result}")
+        
+        # Close any remaining connections
+        conn.close()
+        logging.info("Database connections cleaned up")
+        
+    except Exception as e:
+        # Don't let cleanup errors crash the program
+        logging.error(f"Non-critical error during database cleanup: {e}")
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    logging.info(f"Received signal {signum}, cleaning up...")
+    cleanup_database_connections()
+    sys.exit(0)
+
+# Register cleanup handlers
+atexit.register(cleanup_database_connections)
+signal.signal(signal.SIGINT, signal_handler)
+if hasattr(signal, 'SIGTERM'):
+    signal.signal(signal.SIGTERM, signal_handler)
+
 # === MAIN EXECUTION ===
-if __name__ == "__main__":
-    print(f"Initializing optimized transaction fetcher for 2025 season ({ENVIRONMENT} mode)...")
-    init_database()
+def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Backfill transaction data with multi-season support')
+    parser.add_argument('--environment', choices=['test', 'production'], 
+                       help='Environment to use (overrides DATA_ENV)')
+    parser.add_argument('--validate', action='store_true',
+                       help='Validate database compatibility without making changes')
+    parser.add_argument('--start-date', help='Start date (YYYY-MM-DD)')
+    parser.add_argument('--end-date', help='End date (YYYY-MM-DD)')
+    # Multi-season support arguments
+    parser.add_argument('--season', type=int, help='Specific season year (e.g., 2023)')
+    parser.add_argument('--seasons', help='Season range (e.g., "2020-2023")')
+    parser.add_argument('--all-seasons', action='store_true', help='Process all available seasons')
+    parser.add_argument('--profile', choices=['recent', 'historical', 'full', 'current'],
+                       help='Use a predefined collection profile')
+    args = parser.parse_args()
+    
+    # Check for validation mode
+    if args.validate:
+        print("Running database validation...")
+        init_database(validate_only=True)
+        return
+    
+    # Determine environment
+    environment = args.environment or get_environment()
+    
+    # Determine which seasons to process
+    if args.all_seasons:
+        seasons_to_process = season_manager.get_available_seasons()
+        print(f"Processing ALL available seasons: {seasons_to_process}")
+    elif args.seasons:
+        # Parse season range (e.g., "2020-2023")
+        if '-' in args.seasons:
+            start_year, end_year = map(int, args.seasons.split('-'))
+            seasons_to_process = season_manager.get_seasons_in_range(start_year, end_year)
+        else:
+            # Single season as string
+            seasons_to_process = [int(args.seasons)]
+        print(f"Processing seasons: {seasons_to_process}")
+    elif args.season:
+        seasons_to_process = [args.season]
+        print(f"Processing season: {args.season}")
+    elif args.profile:
+        from common.season_manager import get_profile_seasons
+        seasons_to_process = get_profile_seasons(args.profile, season_manager)
+        print(f"Processing {args.profile} profile seasons: {seasons_to_process}")
+    else:
+        # Default to current season or 2025
+        current = season_manager.get_current_season()
+        seasons_to_process = [current if current else 2025]
+        print(f"Processing default season: {seasons_to_process[0]}")
+    
+    # Validate seasons
+    for season in seasons_to_process:
+        if not season_manager.validate_season(season):
+            print(f"ERROR: No configuration found for season {season}")
+            return
+    
+    print(f"Initializing optimized transaction fetcher ({environment} mode)...")
+    init_database(environment)
     
     token_manager = TokenManager()
     token_manager.initialize()
     
-    league_key = LEAGUE_KEYS[2025]
+    # Process each season
+    total_transactions = 0
+    all_results = []
     
-    # Select date range based on environment
-    if ENVIRONMENT == 'test':
-        start_date_str, end_date_str = TEST_DATE_RANGE
-        scenario_name = "test_validation_week"
-        print("Running TEST validation for 1 week of data")
-    else:
-        start_date_str, end_date_str = PRODUCTION_DATE_RANGE
-        scenario_name = "full_season_2025_ytd"
-        print("Running PRODUCTION collection for full 2025 season YTD")
+    for season in seasons_to_process:
+        league_key = get_league_key(season)
+        season_dates = get_season_dates(season)
+        
+        # Select date range based on environment or args
+        if args.start_date and args.end_date:
+            # Custom date range overrides season dates
+            start_date_str = args.start_date
+            end_date_str = args.end_date
+            scenario_name = f"custom_range_{season}"
+        else:
+            # Use season dates
+            start_date_str, end_date_str = season_dates
+            if environment == 'test':
+                # For test mode, limit to first week of season
+                from datetime import datetime, timedelta
+                start_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
+                end_dt = start_dt + timedelta(days=7)
+                end_date_str = min(end_dt.strftime("%Y-%m-%d"), season_dates[1])
+                scenario_name = f"test_week_{season}"
+                print(f"TEST mode: Limiting {season} to first week")
+            else:
+                scenario_name = f"full_season_{season}"
     
-    print("\n" + "="*60)
-    print(f"COLLECTING TRANSACTION DATA: 2025 SEASON ({ENVIRONMENT.upper()})")
-    print("="*60)
-    print(f"Date range: {start_date_str} to {end_date_str}")
-    print(f"League: {league_key}")
-    print(f"Environment: {ENVIRONMENT}")
-    print(f"Target table: transactions_{ENVIRONMENT}")
+        print("\n" + "="*60)
+        print(f"COLLECTING TRANSACTION DATA: {season} SEASON ({environment.upper()})")
+        print("="*60)
+        print(f"Date range: {start_date_str} to {end_date_str}")
+        print(f"League: {league_key}")
+        print(f"Environment: {environment}")
+        print(f"Target table: {get_table_name('transactions', environment)}")
+        
+        # Run the collection with concurrent processing for better performance
+        result = benchmark_scenario(scenario_name, start_date_str, end_date_str, league_key, token_manager, use_concurrency=True, environment=environment)
+        
+        # Store result for summary
+        all_results.append({
+            'season': season,
+            'result': result,
+            'start_date': start_date_str,
+            'end_date': end_date_str,
+            'league_key': league_key
+        })
+        
+        # Display results summary for this season
+        print("\n" + "="*60)
+        print(f"SEASON {season} RESULTS")
+        print("="*60)
+        print(f"Duration: {result['duration']:.2f} seconds ({result['duration']/60:.1f} minutes)")
+        print(f"Total transactions collected: {result['transactions']:,}")
+        print(f"Dates processed: {result['dates_processed']}")
+        print(f"Processing rate: {result['rate']:.2f} dates/second")
+        
+        total_transactions += result['transactions']
     
-    # Run the collection with concurrent processing for better performance
-    result = benchmark_scenario(scenario_name, start_date_str, end_date_str, league_key, token_manager, use_concurrency=True, environment=ENVIRONMENT)
-    
-    # Display results summary
-    print("\n" + "="*60)
-    print("COLLECTION RESULTS")
-    print("="*60)
-    print(f"Duration: {result['duration']:.2f} seconds ({result['duration']/60:.1f} minutes)")
-    print(f"Total transactions collected: {result['transactions']:,}")
-    print(f"Dates processed: {result['dates_processed']}")
-    print(f"Processing rate: {result['rate']:.2f} dates/second")
+    # Display overall summary if multiple seasons
+    if len(seasons_to_process) > 1:
+        print("\n" + "="*60)
+        print("MULTI-SEASON COLLECTION SUMMARY")
+        print("="*60)
+        print(f"Seasons processed: {seasons_to_process}")
+        print(f"Total transactions collected: {total_transactions:,}")
+        
+        total_duration = sum(r['result']['duration'] for r in all_results)
+        print(f"Total duration: {total_duration:.2f} seconds ({total_duration/60:.1f} minutes)")
+        
+        for season_data in all_results:
+            print(f"\n{season_data['season']}:")
+            print(f"   League: {season_data['league_key']}")
+            print(f"   Dates: {season_data['start_date']} to {season_data['end_date']}")
+            print(f"   Transactions: {season_data['result']['transactions']:,}")
+            print(f"   Job ID: {season_data['result']['job_id']}")
     
     # Get final database stats
-    table_name = f"transactions_{ENVIRONMENT}"
+    table_name = get_table_name('transactions', environment)
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE date BETWEEN ? AND ?", (start_date_str, end_date_str))
-    total_transactions = cursor.fetchone()[0]
     
-    cursor.execute(f"SELECT MIN(date), MAX(date) FROM {table_name} WHERE date BETWEEN ? AND ?", (start_date_str, end_date_str))
-    date_range = cursor.fetchone()
+    # Get overall database statistics
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+    total_db_transactions = cursor.fetchone()[0]
+    
+    cursor.execute(f"SELECT MIN(date), MAX(date) FROM {table_name}")
+    overall_date_range = cursor.fetchone()
+    
+    # Get per-season counts if applicable
+    if 'season' in [col[1] for col in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()]:
+        cursor.execute(f"SELECT season, COUNT(*) FROM {table_name} GROUP BY season ORDER BY season")
+        season_counts = cursor.fetchall()
+    else:
+        season_counts = []
+    
     conn.close()
     
-    print(f"\nDatabase Statistics:")
-    print(f"   Environment: {ENVIRONMENT}")
-    print(f"   Table: {table_name}")
-    print(f"   Total transactions in database for period: {total_transactions:,}")
-    print(f"   Date range in database: {date_range[0]} to {date_range[1]}")
-    print(f"   Database file: {DB_FILE}")
+    print(f"\n" + "="*60)
+    print("DATABASE STATISTICS")
+    print("="*60)
+    print(f"Environment: {environment}")
+    print(f"Table: {table_name}")
+    print(f"Total transactions in database: {total_db_transactions:,}")
+    if overall_date_range[0] and overall_date_range[1]:
+        print(f"Date range in database: {overall_date_range[0]} to {overall_date_range[1]}")
+    print(f"Database file: {DB_FILE}")
     
-    # Display job summary
-    print(f"\nJob Summary:")
-    print(f"   Job ID: {result['job_id']}")
+    if season_counts:
+        print(f"\nTransactions by season:")
+        for season, count in season_counts:
+            print(f"   {season}: {count:,}")
     
-    if ENVIRONMENT == 'test':
+    if environment == 'test':
         print(f"\nTEST VALIDATION COMPLETE!")
         print(f"Next steps:")
         print(f"1. Review test data quality and completeness")
-        print(f"2. Change ENVIRONMENT to 'production' for full season collection")
+        print(f"2. Set DATA_ENV=production or use --environment production for full season collection")
     else:
         print(f"\nPRODUCTION DATA COLLECTION COMPLETE!")
     

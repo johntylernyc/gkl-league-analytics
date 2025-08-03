@@ -1,21 +1,25 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const { getDatabasePath, getEnvironment } = require('../config/database');
 
 class Database {
   constructor() {
     this.db = null;
+    this.environment = getEnvironment();
   }
 
-  connect() {
+  connect(environment) {
     return new Promise((resolve, reject) => {
-      const dbPath = path.resolve(__dirname, process.env.DB_PATH || '../../database/league_analytics.db');
+      // Allow environment override or use default
+      const env = environment || this.environment;
+      const dbPath = getDatabasePath(env);
       
       this.db = new sqlite3.Database(dbPath, (err) => {
         if (err) {
           console.error('Error connecting to SQLite database:', err.message);
           reject(err);
         } else {
-          console.log('Connected to SQLite database at:', dbPath);
+          console.log(`Connected to SQLite database (${env}):`, dbPath);
           resolve();
         }
       });

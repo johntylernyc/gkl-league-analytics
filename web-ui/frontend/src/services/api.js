@@ -57,6 +57,40 @@ class ApiService {
   async getHealth() {
     return this.request('/health');
   }
+
+  // Lineup methods
+  async getLineupDates() {
+    return this.request('/api/lineups/dates');
+  }
+
+  async getTeams() {
+    return this.request('/api/lineups/teams');
+  }
+
+  async getLineupsByDate(date) {
+    return this.request(`/api/lineups/date/${date}`);
+  }
+
+  async getTeamLineup(date, teamKey) {
+    return this.request(`/api/lineups/date/${date}/team/${teamKey}`);
+  }
+
+  async getPlayerHistory(playerId, startDate, endDate) {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/lineups/player/${playerId}${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getLineupSummary(date) {
+    return this.request(`/api/lineups/summary/${date}`);
+  }
+
+  async searchLineupPlayers(query) {
+    const queryString = new URLSearchParams({ q: query }).toString();
+    return this.request(`/api/lineups/search?${queryString}`);
+  }
 }
 
 export default new ApiService();

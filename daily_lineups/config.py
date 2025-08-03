@@ -18,7 +18,17 @@ from auth.config import (
     CLIENT_SECRET,
     REDIRECT_URI,
     TOKEN_URL,
-    BASE_FANTASY_URL
+    BASE_FANTASY_URL,
+    LEAGUE_KEYS,  # Now comes from centralized metadata
+    SEASON_DATES  # Now comes from centralized metadata
+)
+
+# Import centralized database configuration
+from config.database_config import (
+    get_database_path,
+    get_table_name,
+    get_environment,
+    is_test_environment
 )
 
 # ============================================
@@ -59,71 +69,34 @@ DEFAULT_SEASON = 2025  # Current season
 # League Configuration
 # ============================================
 
-# League keys by season
-LEAGUE_KEYS = {
-    2025: "mlb.l.6966",
-    2024: "431.l.41728",
-    2023: "422.l.54537",
-    2022: "412.l.34665",
-    2021: "404.l.54012",
-    2020: "398.l.35682",
-    2019: "388.l.34240",
-    2018: "378.l.19344",
-    2017: "370.l.36931",
-    2016: "357.l.62816",
-    2015: "346.l.48624",
-    2014: "328.l.36901",
-    2013: "308.l.43210",
-    2012: "268.l.24275",
-    2011: "253.l.58530",
-    2010: "238.l.174722",
-    2009: "215.l.75484",
-    2008: "195.l.181050",
-}
+# League keys and season dates are now imported from centralized metadata
+# via auth.config module. They are available as LEAGUE_KEYS and SEASON_DATES
+# imported at the top of this file.
 
-# Season date ranges
-SEASON_DATES = {
-    2025: ("2025-03-27", "2025-09-28"),
-    2024: ("2024-03-28", "2024-09-29"),
-    2023: ("2023-03-30", "2023-10-01"),
-    2022: ("2022-04-07", "2022-10-05"),
-    2021: ("2021-04-01", "2021-10-03"),
-    2020: ("2020-07-23", "2020-09-27"),
-    2019: ("2019-03-28", "2019-09-29"),
-    2018: ("2018-03-29", "2018-09-30"),
-    2017: ("2017-04-02", "2017-10-01"),
-    2016: ("2016-04-03", "2016-10-02"),
-    2015: ("2015-04-05", "2015-10-04"),
-    2014: ("2014-03-30", "2014-09-28"),
-    2013: ("2013-03-31", "2013-09-29"),
-    2012: ("2012-03-28", "2012-10-03"),
-    2011: ("2011-03-31", "2011-09-28"),
-    2010: ("2010-04-04", "2010-10-03"),
-    2009: ("2009-04-05", "2009-10-04"),
-    2008: ("2008-03-25", "2008-09-28"),
-}
+# Import season manager for convenience functions
+from common.season_manager import (
+    SeasonManager,
+    get_available_seasons,
+    get_league_key,
+    get_season_dates,
+    get_current_season,
+    COLLECTION_PROFILES
+)
 
 # ============================================
 # Database Configuration
 # ============================================
 
-# Database paths
-DATABASE_PATH = Path(__file__).parent.parent / "database" / "league_analytics.db"
-TEST_DATABASE_PATH = Path(__file__).parent.parent / "database" / "league_analytics_test.db"
+# Legacy database paths (for backward compatibility)
+# These are now handled by config.database_config module
+DATABASE_PATH = None  # Will be set dynamically
+TEST_DATABASE_PATH = None  # Will be set dynamically
 
-# Table names
-LINEUP_TABLE = "daily_lineups"
-LINEUP_TABLE_TEST = "daily_lineups_test"
+# Table base names
+LINEUP_TABLE_BASE = "daily_lineups"
 POSITIONS_TABLE = "lineup_positions"
 USAGE_SUMMARY_TABLE = "player_usage_summary"
 PATTERNS_TABLE = "team_lineup_patterns"
-
-# Environment configuration
-def get_table_name(environment="production"):
-    """Get the appropriate table name based on environment."""
-    if environment.lower() == "test":
-        return LINEUP_TABLE_TEST
-    return LINEUP_TABLE
 
 # ============================================
 # Data Retention Configuration
@@ -218,12 +191,14 @@ if os.getenv("LINEUP_API_DELAY"):
 # Helper Functions
 # ============================================
 
-def get_database_path(environment=None):
-    """Get the appropriate database path based on environment."""
-    env = environment or LINEUP_ENV
-    if env.lower() == "test":
-        return TEST_DATABASE_PATH
-    return DATABASE_PATH
+# The get_database_path function is now imported from config.database_config
+# The get_table_name function is now imported from config.database_config
+
+# For backward compatibility, create wrapper functions
+def get_lineup_table_name(environment=None):
+    """Get the appropriate lineup table name based on environment."""
+    env = environment or get_environment()
+    return get_table_name(LINEUP_TABLE_BASE, env)
 
 def get_league_key(season):
     """Get the league key for a given season."""

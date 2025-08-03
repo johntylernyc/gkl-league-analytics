@@ -7,6 +7,15 @@ const database = require('./services/database');
 const transactionsRoutes = require('./routes/transactions');
 const analyticsRoutes = require('./routes/analytics');
 
+let lineupsRoutes;
+try {
+  lineupsRoutes = require('./routes/lineups');
+  console.log('✅ Lineups routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load lineups routes:', error.message);
+  lineupsRoutes = null;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -38,6 +47,13 @@ app.get('/health', (req, res) => {
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
+if (lineupsRoutes) {
+  app.use('/api/lineups', lineupsRoutes);
+  console.log('✅ Lineups routes registered at /api/lineups');
+} else {
+  console.log('❌ Lineups routes not available');
+}
+
 // Default route
 app.get('/', (req, res) => {
   res.json({
@@ -50,7 +66,12 @@ app.get('/', (req, res) => {
       transactionFilters: '/api/transactions/filters',
       playerSearch: '/api/transactions/players/search',
       analytics: '/api/analytics/summary',
-      managers: '/api/analytics/managers'
+      managers: '/api/analytics/managers',
+      lineupDates: '/api/lineups/dates',
+      lineupTeams: '/api/lineups/teams',
+      lineupsByDate: '/api/lineups/date/{date}',
+      teamLineup: '/api/lineups/team/{teamKey}/date/{date}',
+      playerHistory: '/api/lineups/player/{playerId}/history'
     }
   });
 });

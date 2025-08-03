@@ -9,13 +9,11 @@ __version__ = "0.1.0"
 __author__ = "GKL League Analytics Team"
 
 from .collector import DailyLineupsCollector
-from .repository import LineupRepository
 from .parser import LineupParser
 from .job_manager import LineupJobManager
 
 __all__ = [
     "DailyLineupsCollector",
-    "LineupRepository", 
     "LineupParser",
     "LineupJobManager"
 ]
@@ -32,16 +30,28 @@ def health_check():
             - status: 'healthy', 'warning', or 'error'
     """
     from datetime import datetime, timedelta
-    from .repository import LineupRepository
-    
-    repo = LineupRepository()
+    import sqlite3
+    from .config import get_database_path, get_lineup_table_name
     
     try:
-        last_update = repo.get_last_update_time()
+        db_path = get_database_path()
+        table_name = get_lineup_table_name()
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get last update time
+        cursor.execute(f"""
+            SELECT MAX(created_at) FROM {table_name}
+        """)
+        result = cursor.fetchone()
+        last_update = result[0] if result and result[0] else None
+        
         current_time = datetime.now()
         
         if last_update:
-            lag = current_time - last_update
+            last_update_dt = datetime.fromisoformat(last_update)
+            lag = current_time - last_update_dt
             lag_hours = lag.total_seconds() / 3600
             
             # Determine health status
@@ -55,13 +65,16 @@ def health_check():
             lag_hours = None
             status = "error"
         
-        # Calculate coverage
-        coverage = repo.get_data_coverage_percentage()
+        # Get record count for coverage estimate
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        record_count = cursor.fetchone()[0]
+        
+        conn.close()
         
         return {
-            "last_update": last_update.isoformat() if last_update else None,
+            "last_update": last_update,
             "lag_hours": round(lag_hours, 2) if lag_hours else None,
-            "coverage_percentage": round(coverage, 2),
+            "record_count": record_count,
             "status": status,
             "timestamp": current_time.isoformat()
         }

@@ -1,0 +1,9 @@
+{
+  "pragma_optimizations": true,
+  "wal_mode": false,
+  "explicit_transactions": false,
+  "retry_logic": false,
+  "connection_pooling": false,
+  "aggressive_caching": false,
+  "isolation_levels": false
+}

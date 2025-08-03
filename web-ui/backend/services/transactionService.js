@@ -1,6 +1,11 @@
 const database = require('./database');
+const { getTableName, getEnvironment } = require('../config/database');
 
 class TransactionService {
+  constructor() {
+    this.environment = getEnvironment();
+    this.tableName = getTableName('transactions', this.environment);
+  }
   
   // Get all transactions with pagination and filtering
   async getTransactions(options = {}) {
@@ -36,7 +41,7 @@ class TransactionService {
         source_team_name,
         job_id,
         created_at
-      FROM transactions_production
+      FROM ${this.tableName}
       WHERE 1=1
     `;
     
@@ -151,19 +156,19 @@ class TransactionService {
         COUNT(DISTINCT destination_team_name) + COUNT(DISTINCT source_team_name) as unique_teams,
         MIN(date) as earliest_date,
         MAX(date) as latest_date
-      FROM transactions_production
+      FROM ${this.tableName}
     `);
 
     const typeBreakdown = await database.all(`
       SELECT transaction_type, COUNT(*) as count 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       GROUP BY transaction_type 
       ORDER BY count DESC
     `);
 
     const movementBreakdown = await database.all(`
       SELECT movement_type, COUNT(*) as count 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       GROUP BY movement_type 
       ORDER BY count DESC
     `);
@@ -172,7 +177,7 @@ class TransactionService {
       SELECT 
         destination_team_name as team_name, 
         COUNT(*) as acquisitions 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE destination_team_name IS NOT NULL 
       GROUP BY destination_team_name 
       ORDER BY acquisitions DESC 
@@ -183,7 +188,7 @@ class TransactionService {
       SELECT 
         player_name, 
         COUNT(*) as transaction_count 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       GROUP BY player_name 
       ORDER BY transaction_count DESC 
       LIMIT 10
@@ -193,7 +198,7 @@ class TransactionService {
       SELECT 
         player_name, 
         COUNT(*) as drop_count 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE movement_type = 'drop' 
       GROUP BY player_name 
       ORDER BY drop_count DESC 
@@ -204,7 +209,7 @@ class TransactionService {
       SELECT 
         date,
         COUNT(*) as transaction_count
-      FROM transactions_production 
+      FROM ${this.tableName} 
       GROUP BY date 
       ORDER BY date DESC 
       LIMIT 30
@@ -213,11 +218,11 @@ class TransactionService {
     const managerStats = await database.all(`
       WITH team_transactions AS (
         SELECT DISTINCT transaction_id, destination_team_name as team_name 
-        FROM transactions_production 
+        FROM ${this.tableName} 
         WHERE destination_team_name IS NOT NULL
         UNION
         SELECT DISTINCT transaction_id, source_team_name as team_name 
-        FROM transactions_production 
+        FROM ${this.tableName} 
         WHERE source_team_name IS NOT NULL
       )
       SELECT team_name, COUNT(DISTINCT transaction_id) as transaction_count
@@ -242,14 +247,14 @@ class TransactionService {
   async getFilterOptions() {
     const transactionTypes = await database.all(`
       SELECT DISTINCT transaction_type 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE transaction_type IS NOT NULL 
       ORDER BY transaction_type
     `);
 
     const movementTypes = await database.all(`
       SELECT DISTINCT movement_type 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE movement_type IS NOT NULL 
       ORDER BY movement_type
     `);
@@ -266,7 +271,7 @@ class TransactionService {
     // Get all position combinations and split them into individual positions
     const positionCombinations = await database.all(`
       SELECT DISTINCT player_position 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE player_position IS NOT NULL 
       ORDER BY player_position
     `);
@@ -292,7 +297,7 @@ class TransactionService {
     // Get unique MLB teams
     const mlbTeams = await database.all(`
       SELECT DISTINCT player_team 
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE player_team IS NOT NULL 
       ORDER BY player_team
     `);
@@ -310,7 +315,7 @@ class TransactionService {
   async searchPlayers(query, limit = 10) {
     const players = await database.all(`
       SELECT DISTINCT player_name, player_position, player_team
-      FROM transactions_production 
+      FROM ${this.tableName} 
       WHERE player_name LIKE ? 
       ORDER BY player_name 
       LIMIT ?
