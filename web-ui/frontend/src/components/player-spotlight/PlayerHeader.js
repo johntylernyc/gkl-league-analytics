@@ -112,6 +112,33 @@ const PlayerHeader = ({
                 </div>
               </div>
             )}
+
+            {/* Team History */}
+            {player.team_history && player.team_history.length > 1 && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <span className="text-sm text-gray-500 mr-2">Team History in {currentSeason}:</span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {player.team_history.map((team, index) => (
+                    <div
+                      key={index}
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${
+                        team.team_name === player.current_fantasy_team
+                          ? 'bg-blue-100 text-blue-800 font-medium border border-blue-200'
+                          : 'bg-gray-100 text-gray-700 border border-gray-200'
+                      }`}
+                    >
+                      <span>{team.team_name}</span>
+                      <span className="ml-2 text-xs opacity-75">
+                        {team.days} days ({team.percentage.toFixed(0)}%)
+                      </span>
+                      {team.team_name === player.current_fantasy_team && (
+                        <span className="ml-2 text-xs font-medium">(Current)</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Season Selector */}

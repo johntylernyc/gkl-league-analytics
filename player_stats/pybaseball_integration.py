@@ -6,17 +6,21 @@ Provides interface to pybaseball library for collecting MLB statistics.
 Handles data collection, caching, and error handling for all MLB data sources.
 
 Key Features:
-- Daily batting and pitching statistics collection
-- Player lookup and identification services
+- Daily batting and pitching statistics collection via MLB Stats API
+- Player lookup and identification services via pybaseball
 - Data caching and rate limiting
 - Error handling and retry logic
-- Multiple data source support (Fangraphs, Baseball Reference, Statcast)
+- Multiple data source support (MLB Stats API, Fangraphs, Baseball Reference, Statcast)
+
+Note: Due to a bug in pybaseball 2.2.7's batting_stats_range and pitching_stats_range,
+we use the MLB Stats API directly for daily statistics.
 """
 
 import sys
 import logging
 import json
 import time
+import requests
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any, Tuple
@@ -39,11 +43,16 @@ logger = logging.getLogger(__name__)
 
 class PyBaseballIntegration:
     """
-    Manages all interactions with the pybaseball library.
+    Manages all interactions with the pybaseball library and MLB Stats API.
     
     Provides centralized access to MLB data with proper error handling,
     caching, and rate limiting to ensure reliable data collection.
+    
+    Note: Due to bugs in pybaseball's batting_stats_range and pitching_stats_range,
+    we use the MLB Stats API directly for daily statistics.
     """
+    
+    MLB_STATS_API_BASE = "https://statsapi.mlb.com/api/v1"
     
     def __init__(self, environment: str = "production"):
         """
@@ -61,6 +70,9 @@ class PyBaseballIntegration:
         
         # Data validation thresholds
         self.validation_config = self.config['data_validation']
+        
+        # Session for MLB Stats API
+        self.session = requests.Session()
         
         logger.info(f"Initialized PyBaseballIntegration for {environment} environment")
         
@@ -92,6 +104,64 @@ class PyBaseballIntegration:
                 time.sleep(sleep_time)
         
         self.last_request_time = time.time()
+    
+    def _mlb_api_request(self, endpoint: str, params: Dict[str, Any] = None) -> Optional[Dict]:
+        """Make a request to the MLB Stats API."""
+        self._rate_limit()
+        
+        url = f"{self.MLB_STATS_API_BASE}{endpoint}"
+        try:
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"MLB API request failed for {endpoint}: {e}")
+            return None
+    
+    def _get_games_for_date(self, target_date: date) -> List[Dict]:
+        """Get all games played on a specific date."""
+        date_str = target_date.strftime('%Y-%m-%d')
+        
+        data = self._mlb_api_request(
+            "/schedule",
+            params={
+                "sportId": 1,  # MLB
+                "date": date_str,
+                "hydrate": "team,probablePitcher,lineups"
+            }
+        )
+        
+        if not data or 'dates' not in data or not data['dates']:
+            return []
+        
+        games = []
+        for date_data in data['dates']:
+            if 'games' in date_data:
+                games.extend(date_data['games'])
+        
+        return games
+    
+    def _get_game_boxscore(self, game_id: int) -> Optional[Dict]:
+        """Get detailed boxscore for a specific game."""
+        return self._mlb_api_request(f"/game/{game_id}/boxscore")
+    
+    def _calculate_total_bases(self, batting: Dict) -> int:
+        """Calculate total bases from batting stats."""
+        singles = batting.get('hits', 0) - batting.get('doubles', 0) - batting.get('triples', 0) - batting.get('homeRuns', 0)
+        return (singles + 
+                2 * batting.get('doubles', 0) + 
+                3 * batting.get('triples', 0) + 
+                4 * batting.get('homeRuns', 0))
+    
+    def _innings_to_decimal(self, innings_str: str) -> float:
+        """Convert innings pitched format (e.g., '6.2') to decimal."""
+        try:
+            if '.' in str(innings_str):
+                whole, outs = str(innings_str).split('.')
+                return float(whole) + float(outs) / 3.0
+            return float(innings_str)
+        except:
+            return 0.0
     
     def lookup_player_ids(self, last_name: str, first_name: str = None) -> List[Dict[str, Any]]:
         """
@@ -143,7 +213,7 @@ class PyBaseballIntegration:
     
     def get_daily_batting_stats(self, target_date: date) -> Optional[pd.DataFrame]:
         """
-        Get daily batting statistics for a specific date.
+        Get daily batting statistics for a specific date using MLB Stats API.
         
         Args:
             target_date: Date to collect stats for
@@ -154,28 +224,85 @@ class PyBaseballIntegration:
         self._rate_limit()
         
         try:
-            logger.info(f"Collecting daily batting stats for {target_date}")
+            logger.info(f"Collecting daily batting stats for {target_date} via MLB Stats API")
             
-            # Use pybaseball to get daily stats
-            # Note: pybaseball doesn't have a direct "daily" function, so we need to
-            # get stats for a date range and filter, or use game-by-game data
-            
-            # For now, we'll use a basic approach with season stats
-            # This would need to be enhanced based on available pybaseball functions
-            year = target_date.year
-            
-            # Get season batting stats (this is a placeholder - would need game-level data)
-            batting_data = self.pybaseball.batting_stats(year, qual=1)
-            
-            if batting_data is None or batting_data.empty:
-                logger.warning(f"No batting data found for {target_date}")
+            # Get all games for the date
+            games = self._get_games_for_date(target_date)
+            if not games:
+                logger.warning(f"No games found for {target_date}")
                 return None
             
-            # Add metadata columns
-            batting_data['data_date'] = target_date.isoformat()
-            batting_data['collection_date'] = date.today().isoformat()
+            all_batting_stats = []
             
-            logger.info(f"Collected batting stats for {len(batting_data)} players on {target_date}")
+            for game in games:
+                game_id = game['gamePk']
+                
+                # Get boxscore for the game
+                boxscore = self._get_game_boxscore(game_id)
+                if not boxscore:
+                    continue
+                
+                # Process both teams
+                for team_side in ['away', 'home']:
+                    team_data = boxscore.get('teams', {}).get(team_side, {})
+                    team_info = team_data.get('team', {})
+                    team_abbr = team_info.get('abbreviation', '')
+                    
+                    # Process all players
+                    players = team_data.get('players', {})
+                    
+                    for player_key, player_data in players.items():
+                        if 'batting' not in player_data.get('stats', {}):
+                            continue
+                        
+                        player_info = player_data.get('person', {})
+                        batting = player_data['stats']['batting']
+                        
+                        # Create row with component stats (no ratios)
+                        stats_row = {
+                            'player_id': player_info.get('id'),
+                            'player_name': player_info.get('fullName', ''),
+                            'team': team_abbr,
+                            'games_played': 1,
+                            'plate_appearances': batting.get('plateAppearances', 0),
+                            'at_bats': batting.get('atBats', 0),
+                            'runs': batting.get('runs', 0),
+                            'hits': batting.get('hits', 0),
+                            'singles': (batting.get('hits', 0) - batting.get('doubles', 0) - 
+                                       batting.get('triples', 0) - batting.get('homeRuns', 0)),
+                            'doubles': batting.get('doubles', 0),
+                            'triples': batting.get('triples', 0),
+                            'home_runs': batting.get('homeRuns', 0),
+                            'rbis': batting.get('rbi', 0),
+                            'walks': batting.get('baseOnBalls', 0),
+                            'intentional_walks': batting.get('intentionalWalks', 0),
+                            'strikeouts': batting.get('strikeOuts', 0),
+                            'stolen_bases': batting.get('stolenBases', 0),
+                            'caught_stealing': batting.get('caughtStealing', 0),
+                            'hit_by_pitch': batting.get('hitByPitch', 0),
+                            'sacrifice_flies': batting.get('sacFlies', 0),
+                            'sacrifice_hits': batting.get('sacBunts', 0),
+                            'ground_into_double_play': batting.get('groundIntoDoublePlay', 0),
+                            'total_bases': self._calculate_total_bases(batting),
+                            'data_date': target_date.isoformat(),
+                            'collection_date': date.today().isoformat()
+                        }
+                        
+                        all_batting_stats.append(stats_row)
+            
+            if not all_batting_stats:
+                logger.warning(f"No batting data collected for {target_date}")
+                return None
+            
+            batting_data = pd.DataFrame(all_batting_stats)
+            
+            # Aggregate by player (in case they played multiple games)
+            numeric_cols = [col for col in batting_data.columns 
+                          if col not in ['player_id', 'player_name', 'team', 'data_date', 'collection_date']]
+            
+            batting_data = batting_data.groupby(['player_id', 'player_name', 'team', 'data_date', 'collection_date'])[numeric_cols].sum().reset_index()
+            
+            logger.info(f"Collected daily batting stats for {len(batting_data)} players on {target_date}")
             return batting_data
             
         except Exception as e:
@@ -184,7 +311,7 @@ class PyBaseballIntegration:
     
     def get_daily_pitching_stats(self, target_date: date) -> Optional[pd.DataFrame]:
         """
-        Get daily pitching statistics for a specific date.
+        Get daily pitching statistics for a specific date using MLB Stats API.
         
         Args:
             target_date: Date to collect stats for
@@ -195,22 +322,90 @@ class PyBaseballIntegration:
         self._rate_limit()
         
         try:
-            logger.info(f"Collecting daily pitching stats for {target_date}")
+            logger.info(f"Collecting daily pitching stats for {target_date} via MLB Stats API")
             
-            year = target_date.year
-            
-            # Get season pitching stats (placeholder - would need game-level data)
-            pitching_data = self.pybaseball.pitching_stats(year, qual=1)
-            
-            if pitching_data is None or pitching_data.empty:
-                logger.warning(f"No pitching data found for {target_date}")
+            # Get all games for the date
+            games = self._get_games_for_date(target_date)
+            if not games:
+                logger.warning(f"No games found for {target_date}")
                 return None
             
-            # Add metadata columns
-            pitching_data['data_date'] = target_date.isoformat()
-            pitching_data['collection_date'] = date.today().isoformat()
+            all_pitching_stats = []
             
-            logger.info(f"Collected pitching stats for {len(pitching_data)} players on {target_date}")
+            for game in games:
+                game_id = game['gamePk']
+                
+                # Get boxscore for the game
+                boxscore = self._get_game_boxscore(game_id)
+                if not boxscore:
+                    continue
+                
+                # Process both teams
+                for team_side in ['away', 'home']:
+                    team_data = boxscore.get('teams', {}).get(team_side, {})
+                    team_info = team_data.get('team', {})
+                    team_abbr = team_info.get('abbreviation', '')
+                    
+                    # Process all players
+                    players = team_data.get('players', {})
+                    
+                    for player_key, player_data in players.items():
+                        if 'pitching' not in player_data.get('stats', {}):
+                            continue
+                        
+                        player_info = player_data.get('person', {})
+                        pitching = player_data['stats']['pitching']
+                        
+                        # Determine if this was a quality start
+                        ip_decimal = self._innings_to_decimal(pitching.get('inningsPitched', '0'))
+                        quality_start = (ip_decimal >= 6.0 and pitching.get('earnedRuns', 0) <= 3)
+                        
+                        # Create row with component stats (no ratios)
+                        stats_row = {
+                            'player_id': player_info.get('id'),
+                            'player_name': player_info.get('fullName', ''),
+                            'team': team_abbr,
+                            'games_played': 1,
+                            'games_started': 1 if player_data.get('gameStatus', {}).get('isStartingPitcher') else 0,
+                            'complete_games': pitching.get('completeGames', 0),
+                            'shutouts': pitching.get('shutouts', 0),
+                            'wins': 1 if pitching.get('wins', 0) > 0 else 0,
+                            'losses': 1 if pitching.get('losses', 0) > 0 else 0,
+                            'saves': pitching.get('saves', 0),
+                            'blown_saves': pitching.get('blownSaves', 0),
+                            'holds': pitching.get('holds', 0),
+                            'innings_pitched': ip_decimal,  # Store as decimal
+                            'batters_faced': pitching.get('battersFaced', 0),
+                            'hits_allowed': pitching.get('hits', 0),
+                            'runs_allowed': pitching.get('runs', 0),
+                            'earned_runs': pitching.get('earnedRuns', 0),
+                            'home_runs_allowed': pitching.get('homeRuns', 0),
+                            'walks_allowed': pitching.get('baseOnBalls', 0),
+                            'intentional_walks_allowed': pitching.get('intentionalWalks', 0),
+                            'strikeouts_pitched': pitching.get('strikeOuts', 0),
+                            'hit_batters': pitching.get('hitBatsmen', 0),
+                            'wild_pitches': pitching.get('wildPitches', 0),
+                            'balks': pitching.get('balks', 0),
+                            'quality_starts': 1 if quality_start else 0,
+                            'data_date': target_date.isoformat(),
+                            'collection_date': date.today().isoformat()
+                        }
+                        
+                        all_pitching_stats.append(stats_row)
+            
+            if not all_pitching_stats:
+                logger.warning(f"No pitching data collected for {target_date}")
+                return None
+            
+            pitching_data = pd.DataFrame(all_pitching_stats)
+            
+            # Aggregate by player (in case they played multiple games)
+            numeric_cols = [col for col in pitching_data.columns 
+                          if col not in ['player_id', 'player_name', 'team', 'data_date', 'collection_date']]
+            
+            pitching_data = pitching_data.groupby(['player_id', 'player_name', 'team', 'data_date', 'collection_date'])[numeric_cols].sum().reset_index()
+            
+            logger.info(f"Collected daily pitching stats for {len(pitching_data)} players on {target_date}")
             return pitching_data
             
         except Exception as e:
@@ -399,9 +594,10 @@ class PyBaseballIntegration:
             
             # Test batting stats (try to get a small sample)
             try:
-                # Get current year batting stats with low qualifier
-                current_year = datetime.now().year
-                batting_data = self.pybaseball.batting_stats(current_year, qual=1)
+                # Get yesterday's batting stats as a test
+                from datetime import timedelta
+                test_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                batting_data = self.pybaseball.batting_stats_range(test_date, test_date)
                 if batting_data is not None and not batting_data.empty:
                     test_results['batting_stats_working'] = True
                 else:
@@ -411,8 +607,9 @@ class PyBaseballIntegration:
             
             # Test pitching stats
             try:
-                current_year = datetime.now().year
-                pitching_data = self.pybaseball.pitching_stats(current_year, qual=1)
+                from datetime import timedelta
+                test_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                pitching_data = self.pybaseball.pitching_stats_range(test_date, test_date)
                 if pitching_data is not None and not pitching_data.empty:
                     test_results['pitching_stats_working'] = True
                 else:

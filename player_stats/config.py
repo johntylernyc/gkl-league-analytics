@@ -229,24 +229,36 @@ PITCHING_STATS = [
 ]
 
 # pybaseball field mapping (pybaseball field -> our field)
+# IMPORTANT: We store raw component stats, not calculated ratios
+# Ratios will be calculated on-the-fly from components
 PYBASEBALL_BATTING_MAPPING = {
     'Name': 'player_name',
     'Team': 'team',
     'G': 'games_played',
+    'PA': 'plate_appearances',  # Important for OBP calculation
     'AB': 'at_bats',
     'R': 'runs',
     'H': 'hits',
+    '1B': 'singles',  # Need for total bases calculation
     '2B': 'doubles',
     '3B': 'triples',
     'HR': 'home_runs',
     'RBI': 'rbis',
     'SB': 'stolen_bases',
+    'CS': 'caught_stealing',
     'BB': 'walks',
     'SO': 'strikeouts',
-    'AVG': 'batting_avg',
-    'OBP': 'on_base_pct',
-    'SLG': 'slugging_pct',
-    'OPS': 'ops',
+    'IBB': 'intentional_walks',
+    'HBP': 'hit_by_pitch',  # Need for OBP
+    'SF': 'sacrifice_flies',  # Need for OBP
+    'SH': 'sacrifice_hits',
+    'GDP': 'ground_into_double_play',
+    'TB': 'total_bases',  # Singles + 2*Doubles + 3*Triples + 4*HR
+    # Don't store ratios - calculate from components
+    # 'AVG': 'batting_avg',  # Calculate as H/AB
+    # 'OBP': 'on_base_pct',  # Calculate as (H+BB+HBP)/(AB+BB+HBP+SF)
+    # 'SLG': 'slugging_pct',  # Calculate as TB/AB
+    # 'OPS': 'ops',  # Calculate as OBP+SLG
 }
 
 PYBASEBALL_PITCHING_MAPPING = {
@@ -254,20 +266,32 @@ PYBASEBALL_PITCHING_MAPPING = {
     'Team': 'team',
     'G': 'games_played',
     'GS': 'games_started',
+    'CG': 'complete_games',
+    'ShO': 'shutouts',
     'W': 'wins',
     'L': 'losses',
     'SV': 'saves',
+    'BS': 'blown_saves',
     'HLD': 'holds',
-    'IP': 'innings_pitched',
+    'IP': 'innings_pitched',  # Store as decimal (6.1 IP = 6.333)
+    'TBF': 'batters_faced',
     'H': 'hits_allowed',
     'R': 'runs_allowed',
     'ER': 'earned_runs',
-    'BB': 'walks_allowed',
-    'SO': 'strikeouts_pitched',
     'HR': 'home_runs_allowed',
-    'ERA': 'era',
-    'WHIP': 'whip',
+    'BB': 'walks_allowed',
+    'IBB': 'intentional_walks_allowed',
+    'SO': 'strikeouts_pitched',
+    'HBP': 'hit_batters',
+    'BK': 'balks',
+    'WP': 'wild_pitches',
     'QS': 'quality_starts',
+    # Don't store ratios - calculate from components
+    # 'ERA': 'era',  # Calculate as (ER*9)/IP
+    # 'WHIP': 'whip',  # Calculate as (BB+H)/IP
+    # 'K/BB': 'k_bb_ratio',  # Calculate as SO/BB
+    # 'K/9': 'k_per_nine',  # Calculate as (SO*9)/IP
+    # 'BB/9': 'bb_per_nine',  # Calculate as (BB*9)/IP
 }
 
 # ============================================

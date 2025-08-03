@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS daily_lineups (
     position_type TEXT,            -- B=Bench, P=Pitcher, etc. from Yahoo API
     player_status TEXT,            -- healthy, DTD, IL, etc.
     eligible_positions TEXT,       -- Comma-separated list of eligible positions
+    player_team TEXT,              -- MLB team code/abbreviation for the player
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (job_id) REFERENCES job_log(job_id),
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS daily_lineups_test (
     position_type TEXT,
     player_status TEXT,
     eligible_positions TEXT,
+    player_team TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (job_id) REFERENCES job_log(job_id),

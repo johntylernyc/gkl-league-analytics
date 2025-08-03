@@ -101,14 +101,17 @@ class ParallelCollectionManager:
         Returns:
             List of uncollected dates
         """
+        from daily_lineups.config import get_lineup_table_name
+        
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            # Get existing dates
-            cursor.execute("""
+            # Get existing dates - use environment-specific table name
+            table_name = get_lineup_table_name(self.environment)
+            cursor.execute(f"""
                 SELECT DISTINCT date
-                FROM daily_lineups
+                FROM {table_name}
                 WHERE date BETWEEN ? AND ?
             """, (start_date, end_date))
             
@@ -295,14 +298,16 @@ class ParallelCollectionManager:
         return summary
 
 
-def monitor_parallel_jobs():
+def monitor_parallel_jobs(environment="production"):
     """Monitor all running collection jobs."""
+    from daily_lineups.config import get_lineup_table_name
+    
     conn = sqlite3.connect('database/league_analytics.db')
     cursor = conn.cursor()
     
     cursor.execute("""
         SELECT job_id, status, date_range_start, date_range_end,
-               start_time, records_processed, records_inserted
+               start_time, records_processed, records_inserted, progress_pct
         FROM job_log
         WHERE job_type = 'lineup_collection'
         AND status = 'running'
@@ -314,17 +319,21 @@ def monitor_parallel_jobs():
     print(f"\nRunning Collection Jobs: {len(jobs)}")
     print("=" * 80)
     
+    table_name = get_lineup_table_name(environment)
+    
     for job in jobs:
         job_id = job[0]
+        progress = job[7] if len(job) > 7 and job[7] is not None else 0.0
         print(f"Job: {job_id[:40]}...")
         print(f"  Range: {job[2]} to {job[3]}")
         print(f"  Started: {job[4]}")
         print(f"  Records: {job[6]}")
+        print(f"  Progress: {progress:.1f}%")
         
         # Check progress
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(DISTINCT date) 
-            FROM daily_lineups 
+            FROM {table_name}
             WHERE job_id = ?
         """, (job_id,))
         

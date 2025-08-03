@@ -59,49 +59,79 @@ const Home = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-        <div className="card">
-          <div className="card-body text-center">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mt-12">
+        <div className="card h-full">
+          <div className="card-body text-center flex flex-col h-full">
             <div className="text-3xl text-primary-500 mb-4">📊</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Transaction Explorer
             </h3>
-            <p className="text-gray-600 mb-4">
-              Browse and search through all fantasy transactions with advanced filtering options.
+            <p className="text-gray-600 mb-4 flex-grow">
+              Browse and search through all fantasy transactions with advanced filtering.
             </p>
-            <a href="/transactions" className="btn-primary">
-              Explore Transactions
+            <a href="/transactions" className="btn-primary w-full text-center">
+              Explore Moves
             </a>
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-body text-center">
+        <div className="card h-full">
+          <div className="card-body text-center flex flex-col h-full">
+            <div className="text-3xl text-purple-500 mb-4">📋</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Daily Lineups
+            </h3>
+            <p className="text-gray-600 mb-4 flex-grow">
+              View and analyze daily roster decisions and lineup optimizations.
+            </p>
+            <a href="/lineups" className="btn-primary w-full text-center">
+              View Lineups
+            </a>
+          </div>
+        </div>
+
+        <div className="card h-full">
+          <div className="card-body text-center flex flex-col h-full">
+            <div className="text-3xl text-indigo-500 mb-4">🔍</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Player Explorer
+            </h3>
+            <p className="text-gray-600 mb-4 flex-grow">
+              Search players and view detailed spotlight cards with stats.
+            </p>
+            <a href="/players" className="btn-primary w-full text-center">
+              Explore Players
+            </a>
+          </div>
+        </div>
+
+        <div className="card h-full">
+          <div className="card-body text-center flex flex-col h-full">
             <div className="text-3xl text-success-500 mb-4">📈</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Analytics Dashboard
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 mb-4 flex-grow">
               View trends, patterns, and insights from league transaction data.
             </p>
-            <a href="/analytics" className="btn-secondary">
+            <button disabled className="btn-secondary w-full text-center">
               Coming Soon
-            </a>
+            </button>
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-body text-center">
+        <div className="card h-full">
+          <div className="card-body text-center flex flex-col h-full">
             <div className="text-3xl text-warning-500 mb-4">👥</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Manager Analysis
             </h3>
-            <p className="text-gray-600 mb-4">
-              Analyze individual manager trading patterns and activity levels.
+            <p className="text-gray-600 mb-4 flex-grow">
+              Analyze individual manager trading patterns and activity.
             </p>
-            <a href="/managers" className="btn-secondary">
+            <button disabled className="btn-secondary w-full text-center">
               Coming Soon
-            </a>
+            </button>
           </div>
         </div>
       </div>

@@ -158,7 +158,7 @@ const DailyLineups = () => {
           </div>
         </div>
       ) : lineups.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-fr">
           {lineups.map((lineup, index) => (
             <LineupGrid
               key={`${lineup.team_key}-${index}`}

@@ -111,6 +111,29 @@ temp/
 archive/debug/
 archive/test_data/
 
+# Database specific
+*.db-journal
+*.db-shm
+*.db-wal
+database/*.backup*
+database/test_*.db
+database/backup_*.db
+
+# Cache & Temporary Files
+cache/
+checkpoint.json
+nul
+
+# Progress Tracking
+player_stats/progress/*.json
+daily_lineups/progress/*.json
+
+# Project Specific Test Files
+mapping_candidates_summary.txt
+*_test.py
+test_*.py
+debug_*.py
+
 # OS Files
 .DS_Store
 .DS_Store?

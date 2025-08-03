@@ -39,7 +39,7 @@ const LineupGrid = ({ lineup, onPlayerClick }) => {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white rounded-lg shadow flex flex-col h-full">
       <div className="px-6 py-4 border-b border-gray-200">
         <h3 className="text-lg font-medium text-gray-900">
           {lineup.team_name}
@@ -49,7 +49,7 @@ const LineupGrid = ({ lineup, onPlayerClick }) => {
         </p>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 flex-grow">
         {/* Starting Batters */}
         {groupedPlayers.batters.length > 0 && (
           <div>

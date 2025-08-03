@@ -25,17 +25,19 @@ Features:
 __version__ = "1.0.0"
 __author__ = "GKL League Analytics Team"
 
-# Module exports (will be available once all components are implemented)
-# from .collector import PlayerStatsCollector
-# from .job_manager import PlayerStatsJobManager
-# from .repository import PlayerStatsRepository
-# from .player_id_mapper import PlayerIdMapper
-# from .data_validator import PlayerStatsValidator
+# Module exports - all core components implemented and available
+from .collector import PlayerStatsCollector
+from .job_manager import PlayerStatsJobManager
+from .repository import PlayerStatsRepository
+from .player_id_mapper import PlayerIdMapper
+from .data_validator import PlayerStatsValidator
+from .pybaseball_integration import PyBaseballIntegration
 
 __all__ = [
-    # 'PlayerStatsCollector',
-    # 'PlayerStatsJobManager', 
-    # 'PlayerStatsRepository',
-    # 'PlayerIdMapper',
-    # 'PlayerStatsValidator'
+    'PlayerStatsCollector',
+    'PlayerStatsJobManager', 
+    'PlayerStatsRepository',
+    'PlayerIdMapper',
+    'PlayerStatsValidator',
+    'PyBaseballIntegration'
 ]

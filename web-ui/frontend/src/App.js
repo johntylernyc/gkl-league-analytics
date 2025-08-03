@@ -8,6 +8,7 @@ import Managers from './pages/Managers';
 import Home from './pages/Home';
 import DailyLineups from './pages/DailyLineups';
 import PlayerSpotlight from './pages/PlayerSpotlight';
+import PlayerExplorer from './pages/PlayerExplorer';
 import './App.css';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
             <Route path="/transactions" element={<TransactionExplorer />} />
             <Route path="/lineups" element={<DailyLineups />} />
             <Route path="/lineups/player/:playerId" element={<PlayerSpotlight />} />
+            <Route path="/players" element={<PlayerExplorer />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/managers" element={<Managers />} />
           </Routes>

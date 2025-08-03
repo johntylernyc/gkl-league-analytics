@@ -114,6 +114,30 @@ class ApiService {
     const queryString = new URLSearchParams(params).toString();
     return this.request(`/api/players/search?${queryString}`);
   }
+
+  async getPlayerPerformanceBreakdown(playerId, season = 2025) {
+    const params = { season };
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/players/${playerId}/performance-breakdown?${queryString}`);
+  }
+
+  // Player Explorer endpoints
+  async searchPlayers(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/api/player-search/search?${queryString}`);
+  }
+
+  async getPositions() {
+    return this.request('/api/player-search/positions');
+  }
+
+  async getMlbTeams() {
+    return this.request('/api/player-search/teams');
+  }
+
+  async getGklTeams() {
+    return this.request('/api/player-search/gkl-teams');
+  }
 }
 
 export default new ApiService();

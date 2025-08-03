@@ -164,9 +164,18 @@ const PlayerSpotlight = () => {
 
         {/* Main Content */}
         <div className="space-y-8">
+
           {/* Usage Summary Cards */}
           <UsageSummaryCards
             usageBreakdown={playerData.usage_breakdown}
+            monthlyData={playerData.monthly_data}
+            season={currentSeason}
+          />
+
+          {/* Performance Breakdown */}
+          <PerformanceBreakdown
+            playerId={playerId}
+            playerName={playerData.player.player_name}
             season={currentSeason}
           />
 
@@ -175,13 +184,6 @@ const PlayerSpotlight = () => {
             monthlyData={playerData.monthly_data}
             season={currentSeason}
             playerName={playerData.player.player_name}
-          />
-
-          {/* Performance Breakdown */}
-          <PerformanceBreakdown
-            usageBreakdown={playerData.usage_breakdown}
-            playerName={playerData.player.player_name}
-            season={currentSeason}
           />
 
           {/* Data Quality Notice */}

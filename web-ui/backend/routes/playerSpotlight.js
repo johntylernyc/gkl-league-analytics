@@ -73,6 +73,26 @@ router.get('/:playerId/seasons', async (req, res) => {
   }
 });
 
+// GET /api/players/:playerId/performance-breakdown - Get player performance breakdown by usage
+router.get('/:playerId/performance-breakdown', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { season = 2025 } = req.query;
+
+    console.log(`Fetching performance breakdown for player ${playerId}, season ${season}`);
+
+    const performanceData = await playerSpotlightService.getPlayerPerformanceBreakdown(playerId, parseInt(season));
+    
+    res.json(performanceData);
+  } catch (error) {
+    console.error('Error fetching performance breakdown:', error);
+    res.status(500).json({
+      error: 'Failed to fetch performance breakdown',
+      message: error.message
+    });
+  }
+});
+
 // GET /api/players/search - Search players for autocomplete
 router.get('/search', async (req, res) => {
   try {

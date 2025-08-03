@@ -7,6 +7,7 @@ const database = require('./services/database');
 const transactionsRoutes = require('./routes/transactions');
 const analyticsRoutes = require('./routes/analytics');
 const playerSpotlightRoutes = require('./routes/playerSpotlight');
+const playersRoutes = require('./routes/players');
 
 let lineupsRoutes;
 try {
@@ -48,6 +49,7 @@ app.get('/health', (req, res) => {
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/players', playerSpotlightRoutes);
+app.use('/api/player-search', playersRoutes);
 
 if (lineupsRoutes) {
   app.use('/api/lineups', lineupsRoutes);
