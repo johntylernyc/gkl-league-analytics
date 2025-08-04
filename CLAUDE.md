@@ -4,188 +4,527 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python project for Yahoo Fantasy Sports league analytics, specifically focused on fetching and analyzing fantasy baseball league data from Yahoo Fantasy Baseball leagues. The project uses OAuth2 authentication to access Yahoo's Fantasy Sports API and processes transaction data (adds, drops, trades), matchup data (head-to-head matchups, category scores, total wins and losses), standings data, roster data (which players started in which positions, bench players, etc.) and more details for historical analysis. It combines Yahoo Fantasy Baseball data from the league with MLB data using the pybaseball Python library to gather additional insights and details from Fangraphs, Baseball Reference, Statcast, and other MLB data sources.
+GKL League Analytics is a production fantasy baseball analytics platform that collects, processes, and visualizes data from Yahoo Fantasy Sports leagues. The system runs on Cloudflare's global edge network, providing real-time insights through a React frontend and Workers API backend.
 
-Additionally, this project has a user interface written in Node.js to access these insights and explore league data alongside MLB data.
+**Current Implementation Status**: 
+- ✅ Production deployment on Cloudflare (goldenknightlounge.com)
+- ✅ Transaction data collection with comprehensive job logging
+- ✅ Daily lineup tracking and analysis
+- ✅ React-based web UI with player spotlight features
+- ✅ Automated data refresh via scheduled workers
+- ⏳ PyBaseball MLB data integration (planned)
+- ⏳ Advanced predictive analytics (planned)
 
-**Current Implementation Status**: The codebase contains a production-ready Yahoo Fantasy API integration for transaction data collection with optimized database schema, comprehensive job logging, and performance-tuned queries. The matchup data, standings data, roster data, pybaseball integration, and Node.js UI components are planned features not yet implemented.
+## Critical Development Rules
+
+### 1. Development Process Requirements
+
+**MANDATORY: Before ANY development work**, Claude must:
+
+1. **Review Requirements** - Understand what needs to be built
+2. **Analyze Current State** - Examine existing code and architecture
+3. **Understand Scope** - Define boundaries of changes
+4. **Consider Impacts** - Identify upstream/downstream dependencies
+5. **Draft Implementation Plan** - Create detailed methodology
+6. **Validate with User** - Get approval before proceeding
+
+**Documentation Requirements**:
+- Create implementation plan in `/docs/development-docs/` BEFORE coding
+- Include clear list of artifacts to be created/modified
+- Update documentation after user confirms feature works
+- Track all files, scripts, and components created
+
+### 2. Post-Release Documentation Updates
+
+**After each GitHub commit**, Claude must:
+- Review and update `/docs/permanent-docs/` to reflect current state
+- Update this CLAUDE.md file with any architectural changes
+- Ensure README.md accurately describes the production system
+- Archive outdated development documentation
+
+### 3. Data Integrity Rules
+
+**For ALL data processing work** (pipelines, ETL, database changes, APIs):
+- **NEVER use mock/simulated data** unless explicitly approved by user
+- Always use real Yahoo API data for testing
+- Validate data quality before database insertion
+- Maintain audit trails via job logging
+- Test data transformations with production-like data
+
+### 4. API Change Management
+
+**Before modifying ANY endpoint or API**:
+1. Conduct full change assessment
+2. Document all consumers of the endpoint
+3. Identify breaking vs non-breaking changes
+4. Create migration plan if needed
+5. Review assessment with user before proceeding
+6. Update all affected components
+
+### 5. Environment Management
+
+**Test/Production Separation**:
+1. **Test Environment** - Mirror production configuration
+2. **Development Flow** - Test locally → Validate → Deploy to production
+3. **Backup Procedures** - Document rollback steps for:
+   - GitHub (git revert commands)
+   - Database (D1 backup/restore)
+   - Cloudflare (worker rollback)
+   - Configuration (wrangler.toml versions)
+
+### 6. Pre-Commit Security Review
+
+**Before EVERY GitHub commit**, Claude must:
+
+1. **Scan for Sensitive Information**:
+   - Check for API keys, tokens, passwords
+   - Review for client IDs and secrets
+   - Verify no database credentials exposed
+   - Look for hardcoded URLs with auth parameters
+   - Check for personal information (emails, IPs)
+
+2. **Update .gitignore**:
+   - Add test scripts (test_*.py, debug_*.py)
+   - Exclude single-use debugging files
+   - Remove temporary data files
+   - Exclude local configuration files
+   - Add any generated credential files
+
+3. **Security Checklist**:
+   ```bash
+   # Before committing, verify:
+   git diff --staged | grep -E "(password|secret|token|key|api_key|client_id)"
+   git status --ignored  # Review what's being excluded
+   ```
+
+### 7. Post-Release Cleanup
+
+**After EACH release/commit**, Claude must:
+
+1. **Remove Ephemeral Files**:
+   - Delete test databases (*.test.db, test_*.db)
+   - Remove debugging scripts (debug_*.py, test_*.py)
+   - Clean up temporary data files (*.tmp, *.temp)
+   - Delete single-use migration scripts
+   - Remove development logs (*.log in dev directories)
+
+2. **Archive Development Artifacts**:
+   - Move useful test scripts to `/archive/` with date prefix
+   - Document why files were kept or removed
+   - Update .gitignore for new patterns discovered
+
+3. **Cleanup Commands**:
+   ```bash
+   # Standard cleanup after release
+   find . -name "test_*.py" -type f -delete
+   find . -name "debug_*.py" -type f -delete
+   find . -name "*.test.db" -type f -delete
+   find . -name "*.tmp" -type f -delete
+   
+   # Archive useful scripts
+   mkdir -p archive/$(date +%Y-%m-%d)
+   mv useful_test_script.py archive/$(date +%Y-%m-%d)/
+   ```
+
+4. **Documentation**:
+   - List removed files in development-docs
+   - Note any files moved to archive
+   - Update CLAUDE.md if new patterns emerge
 
 ## Common Development Commands
 
-This is a Python project without standard build tools. Run Python scripts directly:
-
+### Local Development Setup
 ```bash
-# Initialize OAuth tokens (first time setup)
-python helpers/generate_auth_url.py  # Generates auth URL for user consent
-python helpers/initiailize_tokens.py  # Exchanges auth code for tokens
+# Start backend API (port 3001)
+cd web-ui/backend
+npm install && npm start
 
-# Test authentication and fetch stat mappings
-python helpers/test_auth.py
+# Start frontend (port 3000) - in new terminal
+cd web-ui/frontend
+npm install && npm start
 
-# Main data collection script
-python league_transactions/backfill_transactions_optimized.py
-
-# Test data collection (July 2025)
-python league_transactions/run_july_backfill.py
+# Frontend will use local API if .env.local exists
 ```
 
-**Future Commands** (when implemented):
+### Authentication & Setup
 ```bash
-# Install Python dependencies
-pip install -r requirements.txt  # Will include pybaseball and other MLB data libraries
-
-# Install Node.js UI dependencies
-cd ui && npm install
-
-# Start Node.js development server
-cd ui && npm run dev
-
-# Run data collection for all data types
-python scripts/collect_all_data.py
+# Initialize OAuth tokens (expire hourly)
+python auth/generate_auth_url.py      # Get authorization URL
+python auth/initialize_tokens.py      # Exchange code for tokens
+python auth/test_auth.py              # Verify authentication
 ```
+
+### Data Collection
+```bash
+cd data_pipeline
+
+# Transaction collection - Bulk backfill
+python league_transactions/backfill_transactions.py --season 2025
+python league_transactions/backfill_transactions.py --start 2025-03-01 --end 2025-09-30 --workers 4
+
+# Transaction collection - Incremental updates
+python league_transactions/update_transactions.py        # Default 7-day lookback
+python league_transactions/update_transactions.py --since-last
+python league_transactions/update_transactions.py --date 2025-08-04
+
+# Lineup collection - Bulk backfill
+python daily_lineups/backfill_lineups.py --season 2025
+python daily_lineups/backfill_lineups.py --start 2025-03-01 --end 2025-09-30 --workers 4
+
+# Lineup collection - Incremental updates
+python daily_lineups/update_lineups.py        # Default 7-day lookback
+python daily_lineups/update_lineups.py --since-last
+python daily_lineups/update_lineups.py --date 2025-08-04
+
+# Player statistics (when implemented)
+python player_stats/incremental_update.py
+```
+
+### Database Operations
+```bash
+# Sync local to production (handles foreign keys automatically)
+python scripts/sync_to_production.py
+
+# The sync script will:
+# 1. Export recent transactions and lineups
+# 2. Extract all referenced job_ids
+# 3. Export corresponding job_log entries
+# 4. Generate import commands in correct order
+
+# Import to production D1 - MUST FOLLOW THIS ORDER:
+cd cloudflare-production
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/job_logs_*.sql --remote    # FIRST
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/transactions_*.sql --remote # SECOND
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/lineups_*.sql --remote      # THIRD
+```
+
+**Foreign Key Constraints:**
+- All data tables reference job_log.job_id
+- Import job_logs FIRST to avoid FOREIGN KEY errors
+- Use INSERT OR IGNORE for job_logs to handle duplicates
+- Use REPLACE for data tables to handle updates
+
+### Deployment
+```bash
+# Deploy API to Cloudflare Workers
+cd cloudflare-production
+npm run deploy
+
+# Deploy frontend to Cloudflare Pages
+cd web-ui/frontend
+npm run build
+npx wrangler pages deploy build --project-name gkl-fantasy
+```
+
+## Recent Improvements (August 2025)
+
+### Data Pipeline Consolidation
+Both `league_transactions` and `daily_lineups` modules have been consolidated:
+- **From**: 10+ scripts per module with overlapping functionality
+- **To**: 2 main scripts per module (backfill + update) plus data quality validation
+- **Benefits**: Cleaner code, consistent patterns, better maintainability
+- **Pattern**: Each module now has:
+  - `backfill_*.py` - Bulk historical data with parallel processing
+  - `update_*.py` - Incremental updates for automation
+  - `data_quality_check.py` - Comprehensive validation
+
+### Key Fixes
+- League key for 2025: `458.l.6966` (not 449 or mlb prefixes)
+- Complete data extraction for all add/drop transaction movements
+- Full roster data for all 18 teams in daily lineups
+- Proper date handling using transaction timestamps
 
 ## Project Architecture
 
-### Current Directory Structure
-- `auth/` - OAuth2 authentication and configuration utilities
-- `league_transactions/` - Transaction data collection scripts (production-ready)
-- `database/` - SQLite database with optimized schema
+### Directory Structure
+```
+gkl-league-analytics/
+├── auth/                          # OAuth2 authentication
+├── data_pipeline/                 # Python data collection
+│   ├── league_transactions/       # Transaction processing
+│   ├── daily_lineups/            # Lineup collection
+│   ├── player_stats/             # MLB stats integration (planned)
+│   └── common/                   # Shared utilities
+├── cloudflare-production/        # Production deployment
+│   ├── src/                      # Workers API code
+│   ├── d1-schema.sql            # Database schema
+│   └── wrangler.toml            # Cloudflare config
+├── cloudflare-scheduled-worker/  # Automated refresh triggers
+├── web-ui/                       # Frontend application
+│   └── frontend/                 # React application
+├── database/                     # SQLite local database
+├── scripts/                      # Utility scripts
+└── docs/                         # Documentation
+    ├── permanent-docs/           # Architecture documentation
+    └── development-docs/         # Development artifacts
+```
 
-### Planned Directory Structure
-- `helpers/` - Authentication and configuration utilities
-- `data_collection/` - Scripts for all Yahoo Fantasy data types (transactions, matchups, standings, rosters)
-- `mlb_integration/` - pybaseball integration for MLB data enrichment
-- `analysis/` - Data analysis and insight generation scripts
-- `ui/` - Node.js web interface
-- `data/` - Output directory for CSV files and processed data
+### Technology Stack
 
-### Core Components
-
-**Authentication Flow** (`auth/`):
-- `config.py` - Yahoo API credentials and configuration constants
-- `generate_auth_url.py` - Generates OAuth2 authorization URL for user consent
-- `initialize_tokens.py` - Exchanges authorization code for access/refresh tokens
-- `test_auth.py` - Tests authentication and fetches stat category mappings
-
-**Current Data Collection** (`league_transactions/`):
-- `backfill_transactions_optimized.py` - Production transaction data collection with job logging
-- `run_july_backfill.py` - Test validation script for data collection verification
-- `archive/` - Historical development and debug scripts
-
-**Planned Data Collection Components**:
-- Matchup data collection - Head-to-head weekly matchups with category scores
-- Standings data collection - Season-long team standings and records
-- Roster data collection - Daily lineup/bench decisions and player ownership
-- pybaseball integration - MLB stats, Fangraphs data, Statcast metrics
-
-### Key Features
-
-**Implemented**:
-1. **OAuth2 Token Management**: Automatic token refresh (hourly expiration)
-2. **Comprehensive Job Logging**: Standardized job tracking for all data processing
-3. **Optimized Database Schema**: Normalized structure with performance indexes
-4. **Multi-Environment Support**: Test/production data separation
-5. **Rate Limiting**: 1-second delays between API calls with concurrent processing
-6. **Error Handling**: Robust logging with job status tracking
-7. **Data Quality**: Actual transaction timestamps and direct team information extraction
-
-**Planned**:
-1. **Comprehensive Data Collection**: All Yahoo Fantasy data types
-2. **MLB Data Integration**: pybaseball library for external baseball data
-3. **Web UI**: Node.js interface for data exploration
-4. **Advanced Analytics**: Player performance correlation with real MLB stats
-5. **Historical Trend Analysis**: Multi-season insights and patterns
-
-### Yahoo Fantasy Sports API Integration
-
-**Base URL**: `https://fantasysports.yahooapis.com/fantasy/v2`
-
-**Current Endpoints**:
-- Transactions: `/league/{league_key}/transactions;types=add,drop,trade;date={date}`
-- Stat Categories: `/game/{game_key}/stat_categories`
-
-**Planned Endpoints**:
-- Matchups: `/league/{league_key}/scoreboard;week={week}`
-- Standings: `/league/{league_key}/standings`
-- Rosters: `/team/{team_key}/roster;date={date}`
-- Player Stats: `/league/{league_key}/players;player_keys={player_keys}/stats`
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Frontend** | React 18, Tailwind CSS | User interface |
+| **API** | Cloudflare Workers | Edge API endpoints |
+| **Database** | Cloudflare D1 (SQLite) | Production data storage |
+| **Cache** | Cloudflare KV | API response caching |
+| **Data Pipeline** | Python 3.11+ | Yahoo API integration |
+| **Authentication** | OAuth2 | Yahoo API access |
 
 ### Data Flow Architecture
 
-**Current Flow**:
-1. OAuth authentication and token management
-2. Date-by-date transaction data collection
-3. XML parsing and CSV output
-
-**Planned Enhanced Flow**:
-1. OAuth authentication and token management
-2. Multi-threaded data collection across all data types
-3. Real-time MLB data enrichment via pybaseball
-4. Normalized database storage (SQLite/PostgreSQL)
-5. REST API for web UI consumption
-6. Interactive web dashboard for analysis
-
-### Job Logging Architecture
-
-**CRITICAL: ALL data processing scripts MUST implement standardized job logging**
-
-**Job Logging Requirements**:
-```python
-# Required pattern for ALL data processing scripts
-from backfill_transactions_optimized import start_job_log, update_job_log
-
-# 1. Start job logging
-job_id = start_job_log(
-    job_type="your_job_type",          # Descriptive job identifier
-    environment="test",                # 'test' or 'production'  
-    date_range_start="2025-07-01",     # Data collection start
-    date_range_end="2025-07-31",       # Data collection end
-    league_key="mlb.l.6966",           # League identifier
-    metadata="additional context"       # Optional metadata
-)
-
-# 2. Include job_id in ALL data records
-your_data_processing(job_id=job_id)
-
-# 3. Update job status on completion/failure
-update_job_log(job_id, 'completed', records_processed=N, records_inserted=M)
-# OR
-update_job_log(job_id, 'failed', error_message=str(error))
+```
+Yahoo API → Python Pipeline → SQLite (local) → Export Scripts → D1 (production)
+                                ↓
+                        Job Logging & Audit Trail
 ```
 
-**Database Schema - job_log table**:
-- `job_id`: Unique identifier (format: `{type}_{env}_{timestamp}_{uuid}`)
-- `job_type`: Type of processing (e.g., "transaction_collection")
-- `environment`: "test" or "production"
-- `status`: "running", "completed", "failed"
-- `records_processed`: Total records collected from API
-- `records_inserted`: Records successfully stored in database
-- `date_range_start/end`: Data collection date range
-- `error_message`: Failure details for debugging
+**Production API Flow**:
+```
+User Request → Cloudflare Edge → Workers API → D1/KV → Response
+```
 
-### Configuration Management
+## Critical Implementation Standards
 
-**League Configuration**:
-- `LEAGUE_KEYS`: Season-to-league-key mapping
-- `SEASON_DATES`: Season start/end dates for data collection
-- Currently focused on 2025 season
+### Job Logging Requirements
 
-**API Configuration**:
-- Yahoo OAuth2 credentials in `config.py`
-- Rate limiting and retry logic (1 req/sec, 2 concurrent workers)
-- Environment-based table separation (test/production)
+**MANDATORY for ALL data processing scripts**:
 
-## Project Management
+```python
+from job_manager import start_job_log, update_job_log
 
-See `TODO.md` in the project root for current development status, future feature planning, and task management. This file serves as the central project management hub for tracking all development work, technical debt, and enhancement requests.
+# Start job with comprehensive logging
+job_id = start_job_log(
+    job_type="transaction_collection",
+    environment="test",  # or "production"
+    date_range_start="2025-07-01",
+    date_range_end="2025-07-31",
+    league_key="458.l.6966",  # 2025 league key
+    metadata="additional context"
+)
 
-### Development Notes
+# Include job_id in all data operations
+process_data(job_id=job_id)
 
-- **Dependencies**: Currently minimal (requests, standard library). Will expand to include pybaseball, pandas, numpy for MLB integration
-- **Data Storage**: SQLite database with optimized schema and 12+ performance indexes per table
-- **API Limits**: Yahoo API rate limits; 1-second delays with 2 concurrent workers for optimal throughput
-- **Token Management**: Tokens expire hourly and auto-refresh seamlessly
-- **Database Schema**: Simplified normalized structure with direct team storage (no complex lookup tables)
-- **Job Logging**: Comprehensive job tracking with data lineage for all processing operations
-- **Data Quality**: Actual transaction timestamps extracted from API (not request dates)
-- **Error Handling**: Robust logging with job status tracking and recovery mechanisms
+# Update on completion
+update_job_log(job_id, 'completed', records_processed=N, records_inserted=M)
+```
+
+### API Performance Standards
+
+- **Response Time**: < 200ms p95
+- **Cache TTL**: 5 minutes for dynamic data
+- **Rate Limiting**: 1 req/sec to Yahoo API
+- **Concurrent Workers**: Maximum 2 for data collection
+- **Database Connections**: Connection pooling required
+
+### Security Requirements
+
+1. **Never commit credentials** - Use environment variables
+2. **OAuth tokens** - Auto-refresh before expiration
+3. **SQL injection** - Use prepared statements only
+4. **CORS** - Configure for production domain only
+5. **Secrets management** - Use Cloudflare secrets for production
+
+### Database Standards
+
+1. **Schema changes** - Require migration scripts
+2. **Indexes** - Performance test before adding
+3. **Transactions** - Use for multi-table updates
+4. **Backup** - Before any destructive operations
+
+### Automation Patterns
+
+1. **Incremental Updates** - Use `update_transactions.py` for scheduled tasks
+   ```bash
+   # Crontab example for daily updates at 6 AM
+   0 6 * * * cd /path/to/data_pipeline/league_transactions && python update_transactions.py --quiet
+   ```
+
+2. **Bulk Backfill** - Use `backfill_transactions.py` for historical data
+   - Supports parallel processing (up to 4 workers)
+   - Resume capability for interrupted jobs
+   - Multi-season support
+
+3. **Scheduled Workers** - Cloudflare scheduled triggers for production
+   - Morning: Previous day's lineups
+   - Afternoon: Morning transactions  
+   - Evening: Full synchronization
+5. **Job tracking** - Include job_id in all records
+
+## Environment Configuration
+
+### Local Development Environment
+- **Frontend**: React app on http://localhost:3000
+- **Backend API**: Express server on http://localhost:3001
+- **Database**: Local SQLite (database/league_analytics.db)
+- **Configuration**: `.env.local` for frontend, `.env` for backend
+
+### Production Environment
+- **Frontend**: Cloudflare Pages (goldenknightlounge.com)
+- **API**: Cloudflare Workers (gkl-fantasy-api.services-403.workers.dev)
+- **Database**: Cloudflare D1
+- **Cache**: Cloudflare KV
+
+### Environment Separation
+```
+Local:    Frontend → Backend API (3001) → SQLite
+Production: Frontend → Workers API → D1
+```
+
+### Environment Variables
+```bash
+# Yahoo API (required)
+YAHOO_CLIENT_ID=xxx
+YAHOO_CLIENT_SECRET=xxx
+YAHOO_AUTHORIZATION_CODE=xxx
+
+# Cloudflare (deployment)
+CLOUDFLARE_ACCOUNT_ID=xxx
+CLOUDFLARE_API_TOKEN=xxx
+
+# Database
+DATABASE_URL=./database/league_analytics.db
+D1_DATABASE_ID=xxx
+```
+
+## Documentation Standards
+
+### Documentation Hierarchy
+
+1. **`/docs/permanent-docs/`** - Architecture and system documentation
+   - Updated after releases
+   - Authoritative reference
+   - System design and capabilities
+
+2. **`/docs/development-docs/`** - Development artifacts
+   - Implementation plans
+   - Session-specific documentation
+   - Work-in-progress notes
+
+3. **Module READMEs** - Component-specific documentation
+   - Quick reference
+   - API documentation
+   - Usage examples
+
+### Documentation Requirements
+
+- **Before Development**: Create implementation plan
+- **During Development**: Update progress in dev-docs
+- **After Development**: Update permanent-docs
+- **On Release**: Archive old dev-docs
+
+## Testing Requirements
+
+### Data Collection Testing
+1. Test with small date ranges first
+2. Verify job logging works correctly
+3. Check data quality before bulk operations
+4. Validate against Yahoo API responses
+
+### API Testing
+```bash
+# Local testing
+curl http://localhost:8787/api/health
+
+# Production testing
+curl https://gkl-fantasy-api.services-403.workers.dev/api/health
+```
+
+### Database Testing
+1. Backup before schema changes
+2. Test migrations on local D1 first
+3. Verify indexes improve performance
+4. Check foreign key constraints
+
+## Deployment Checklist
+
+### Pre-Deployment
+- [ ] All tests passing
+- [ ] Documentation updated
+- [ ] Environment variables set
+- [ ] Database migrations ready
+- [ ] Backup created
+
+### Deployment Steps
+1. Deploy API to Workers
+2. Run database migrations
+3. Deploy frontend to Pages
+4. Verify health endpoints
+5. Test critical paths
+
+### Post-Deployment
+- [ ] Monitor error logs
+- [ ] Check performance metrics
+- [ ] Verify data collection
+- [ ] Update documentation
+- [ ] Communicate changes
+
+## Common Issues & Solutions
+
+### Local Development Issues
+
+#### Frontend Shows Old/Production Data
+**Problem**: Frontend at localhost:3000 shows outdated data or production data
+**Solution**: 
+1. Ensure `.env.local` exists in `web-ui/frontend/` with `REACT_APP_API_URL=http://localhost:3001/api`
+2. Restart frontend after creating/modifying `.env.local`
+3. Clear browser cache and refresh
+
+#### Backend Not Starting
+**Problem**: Port 3001 already in use
+**Solution**: Backend is likely already running. Check with:
+```bash
+curl http://localhost:3001/health
+```
+
+#### CORS Errors
+**Problem**: Frontend can't connect to backend
+**Solution**: Verify backend `.env` has `CORS_ORIGIN=http://localhost:3000`
+
+### OAuth Token Expiration
+```bash
+# Tokens expire hourly, refresh with:
+python auth/initialize_tokens.py
+```
+
+### Database Issues
+
+#### Foreign Key Constraint Failed
+**Problem**: Error "FOREIGN KEY constraint failed" when importing to D1
+**Solution**: 
+1. Import job_logs FIRST before any data tables
+2. Use the sync_to_production.py script which handles dependencies
+3. Follow the exact import order shown by the script
+4. Check that all job_ids in data exports exist in job_log
+
+#### Local Database Not Found
+**Problem**: Backend can't find SQLite database
+**Solution**: Check `DB_PATH` in backend `.env` points to correct location
+
+#### Database Size Limits
+- D1 has 500MB limit
+- Use data retention policies
+- Archive old seasons
+
+### API Rate Limiting
+- Yahoo: 1 request/second
+- Implement exponential backoff
+- Use job queue for large operations
+
+### Deployment Failures
+1. Check wrangler.toml configuration
+2. Verify Cloudflare credentials
+3. Review build logs
+4. Test locally first
+
+## Support Resources
+
+- **GitHub Issues**: Bug reports and feature requests
+- **Cloudflare Docs**: https://developers.cloudflare.com
+- **Yahoo API Docs**: https://developer.yahoo.com/fantasysports
+- **Project Docs**: `/docs/permanent-docs/`
+
+---
+
+*Last Updated: August 2025*  
+*Version: 2.0.0 - Production on Cloudflare Edge*

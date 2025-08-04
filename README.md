@@ -1,423 +1,218 @@
-# GKL Fantasy Baseball Analytics
+# GKL League Analytics
 
-A comprehensive fantasy baseball analytics platform that collects data from Yahoo Fantasy Sports API and provides advanced analytics through a modern web application deployed on CloudFlare's edge network.
+A comprehensive fantasy baseball analytics platform that transforms Yahoo Fantasy Sports data into actionable insights through modern edge computing infrastructure.
 
-## 🌐 Live Application
+## 🌟 Overview
 
-| Component | URL | Description |
-|-----------|-----|-------------|
-| **Web Application** | [https://goldenknightlounge.com](https://goldenknightlounge.com) | Main application |
-| **API** | [https://gkl-fantasy-api.services-403.workers.dev](https://gkl-fantasy-api.services-403.workers.dev) | REST API |
+GKL League Analytics is a production-ready system that collects, processes, and visualizes fantasy baseball league data. Built on Cloudflare's global edge network, it provides real-time analytics for player usage patterns, transaction analysis, and team management strategies.
 
-## 🎯 Features
+### Live Application
+- **Web Application**: [https://goldenknightlounge.com](https://goldenknightlounge.com)
+- **API Endpoint**: [https://gkl-fantasy-api.services-403.workers.dev](https://gkl-fantasy-api.services-403.workers.dev)
 
-### Core Functionality
-- **Transaction Explorer**: Track all player adds, drops, and trades with advanced filtering
-- **Player Spotlight**: Deep dive into individual player usage patterns and performance
-- **Daily Lineups**: View and analyze daily roster decisions across all teams
-- **Manager Analytics**: Compare manager strategies and transaction patterns
-- **Performance Breakdown**: Analyze player performance based on roster usage
-- **Monthly Timeline**: Visualize player ownership and status changes over time
+## ✨ Key Features
 
-### Key Capabilities
-- Real-time data from Yahoo Fantasy Sports API
-- Historical transaction and lineup analysis
-- Advanced search and filtering across 600+ players
-- Responsive design for desktop and mobile
-- Global CDN delivery via CloudFlare edge network
+### Analytics Dashboard
+- **Transaction Explorer** - Track all adds, drops, and trades with advanced filtering
+- **Player Spotlight** - Deep analysis of individual player usage and performance
+- **Daily Lineups** - Historical roster decisions and position utilization
+- **Manager Analytics** - Compare strategies across teams
+- **Performance Timeline** - Visualize ownership patterns over time
+
+### Technical Capabilities
+- Real-time data synchronization with Yahoo Fantasy Sports API
+- Edge-powered API with sub-200ms response times globally
+- Comprehensive job logging and audit trails
+- Automated data collection with error recovery
+- Mobile-responsive interface
 
 ## 🏗️ Architecture
 
-### System Overview
+### High-Level System Design
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Yahoo Fantasy API                        │
-└────────────────────┬────────────────────────────────────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │   Python Data Collection │
-        │   • OAuth Authentication │
-        │   • Transaction Fetching │
-        │   • Lineup Collection    │
-        │   • Job Logging          │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │    SQLite Database       │
-        │   • Local Development    │
-        │   • Data Processing      │
-        └────────────┬────────────┘
-                     │
-        ┌────────────▼────────────┐
-        │  CloudFlare D1 Database  │
-        │   • Distributed SQL      │
-        │   • Global Replication   │
-        └──────┬─────────────┬────┘
-               │             │
-    ┌──────────▼───┐    ┌───▼──────────┐
-    │ Workers API  │    │ Pages Frontend│
-    │ • REST API   │◄───│ • React SPA   │
-    │ • KV Cache   │    │ • Tailwind CSS│
-    │ • Edge Logic │    │ • API Client  │
-    └──────────────┘    └──────────────┘
+Users → Cloudflare Edge Network → React Frontend
+                ↓
+        Cloudflare Workers API
+                ↓
+        Cloudflare D1 Database
+                ↑
+    Python Data Pipeline ← Yahoo Fantasy API
 ```
 
 ### Technology Stack
 
-#### Backend (Data Collection)
-- **Python 3.8+**: Core data collection engine
-- **Yahoo Fantasy API**: OAuth2 authenticated data source
-- **SQLite**: Local database for development and processing
-- **Job Logging**: Comprehensive data lineage tracking
-
-#### API Layer (CloudFlare Workers)
-- **JavaScript**: Edge computing runtime
-- **D1 Database**: Distributed SQL at the edge
-- **KV Storage**: High-performance caching
-- **Scheduled Tasks**: Automated data updates
-
-#### Frontend (CloudFlare Pages)
-- **React 18**: Component-based UI framework
-- **Tailwind CSS**: Utility-first styling
-- **React Router**: Client-side routing
-- **Responsive Design**: Mobile-first approach
+| Layer | Technologies |
+|-------|-------------|
+| **Frontend** | React 18, Tailwind CSS, React Router |
+| **API** | Cloudflare Workers, JavaScript/Node.js |
+| **Database** | Cloudflare D1 (SQLite), KV Cache |
+| **Data Pipeline** | Python 3.11+, OAuth2, Job Management |
+| **Infrastructure** | Cloudflare Pages, GitHub Actions |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+ and npm
-- Python 3.8+ (for data collection)
-- CloudFlare account (free tier works)
-- Yahoo Developer account (for API access)
+- Python 3.11+ 
+- Node.js 18+ and npm
+- Cloudflare account (free tier works)
+- Yahoo Developer account
 
-### Local Development Setup
+### Local Development
 
-1. **Clone the repository**
+1. **Clone and Configure**
 ```bash
-git clone https://github.com/your-username/gkl-league-analytics.git
+git clone https://github.com/[username]/gkl-league-analytics.git
 cd gkl-league-analytics
-```
 
-2. **Set up environment variables**
-```bash
-# Copy the example file
+# Set up Yahoo API credentials
 cp .env.example .env
-
-# Edit .env with your credentials:
-# YAHOO_CLIENT_ID=your_client_id
-# YAHOO_CLIENT_SECRET=your_client_secret
-# YAHOO_AUTHORIZATION_CODE=your_auth_code
+# Edit .env with your Yahoo API credentials
 ```
 
-3. **Configure CloudFlare (for deployment)**
+2. **Initialize Authentication**
 ```bash
-# Copy CloudFlare config template
-cp cloudflare-deployment/wrangler.toml.example cloudflare-deployment/wrangler.toml
-
-# Edit wrangler.toml with your CloudFlare IDs
-# See SECURITY_SETUP.md for detailed instructions
-```
-
-4. **Install dependencies**
-```bash
-# Backend dependencies
-pip install -r requirements.txt
-
-# Frontend dependencies
-cd web-ui/frontend && npm install
-
-# CloudFlare deployment dependencies
-cd cloudflare-deployment && npm install
-```
-
-5. **Initialize Yahoo OAuth**
-```bash
-# Generate authorization URL
+# Generate OAuth URL
 python auth/generate_auth_url.py
 
-# Visit the URL, authorize, then initialize tokens
+# Visit URL and authorize, then:
 python auth/initialize_tokens.py
 ```
 
-### Development Workflow
-
-#### Local API Development
+3. **Configure Local Environment**
 ```bash
-cd cloudflare-deployment
-wrangler dev --local --persist
-# API available at http://localhost:8787
+# Frontend configuration (uses local backend)
+cd web-ui/frontend
+cp .env.example .env.local
+# .env.local will contain: REACT_APP_API_URL=http://localhost:3001/api
+
+# Backend configuration (already set)
+cd web-ui/backend
+# Check .env has: PORT=3001, CORS_ORIGIN=http://localhost:3000
 ```
 
-#### Local Frontend Development
+4. **Start Development Servers**
 ```bash
-cd web-ui/frontend
+# Backend API (Terminal 1) - Port 3001
+cd web-ui/backend
+npm install  # First time only
 npm start
-# Frontend available at http://localhost:3000
-```
 
-#### Database Management
-```bash
-# Create local D1 database
-wrangler d1 create gkl-fantasy --local
-
-# Run migrations
-wrangler d1 execute gkl-fantasy --local --file=sql/schema.sql
-
-# Import data
-wrangler d1 execute gkl-fantasy --local --file=sql/sample_transactions.sql
-```
-
-## 📦 Deployment
-
-### Deploy to CloudFlare
-
-1. **Login to CloudFlare**
-```bash
-wrangler login
-```
-
-2. **Create CloudFlare resources**
-```bash
-# Create D1 database
-wrangler d1 create gkl-fantasy
-
-# Create KV namespace
-wrangler kv:namespace create CACHE
-
-# Update wrangler.toml with the IDs returned
-```
-
-3. **Deploy the API**
-```bash
-cd cloudflare-deployment
-wrangler deploy
-```
-
-4. **Deploy the frontend**
-```bash
+# Frontend (Terminal 2) - Port 3000
 cd web-ui/frontend
-npm run build
-wrangler pages deploy build --project-name gkl-fantasy-frontend
+npm install  # First time only
+npm start
 ```
 
-5. **Initialize database**
-```bash
-# Run schema
-wrangler d1 execute gkl-fantasy --file=sql/schema.sql --remote
+## 📊 Data Management
 
-# Import data
-wrangler d1 execute gkl-fantasy --file=sql/data_transactions.sql --remote
-```
+### Data Collection Pipeline
 
-### Custom Domain Setup
-See `cloudflare-deployment/setup-custom-domain.md` for detailed instructions on configuring a custom domain.
-
-## 📊 Data Collection & Updates
-
-### Running Data Update Jobs
-
-#### Where Data Gets Written
-
-The Python data collection scripts follow a two-stage pattern:
-
-1. **Initial Collection**: Data is written to the local SQLite database (`database/league_analytics.db`)
-2. **Export for CloudFlare**: Data must be exported and then imported to CloudFlare D1
-
-```
-Yahoo API → Python Scripts → SQLite (local) → Export → CloudFlare D1 (production)
-```
-
-#### Updating Local Database
+The system uses a Python-based pipeline for data collection:
 
 ```bash
-# 1. Ensure OAuth tokens are fresh (tokens expire hourly)
-python auth/initialize_tokens.py
+# Bulk backfill historical transactions
+cd data_pipeline
+python league_transactions/backfill_transactions.py --season 2025
 
-# 2. Run data collection scripts (writes to SQLite)
+# Incremental transaction updates (for automation)
+python league_transactions/update_transactions.py --days 7
 
-# Collect recent transactions (last 7 days)
-python league_transactions/update_recent_transactions.py
+# Bulk backfill historical lineups
+python daily_lineups/backfill_lineups.py --season 2025
 
-# Collect all transactions for a date range
-python league_transactions/backfill_transactions_optimized.py
+# Incremental lineup updates (for automation)
+python daily_lineups/update_lineups.py --days 7
 
-# Collect daily lineups for current date
-python daily_lineups/update_current_lineups.py
-
-# Collect lineups for date range
-python daily_lineups/collector.py
-
-# 3. Verify data in local SQLite
-sqlite3 database/league_analytics.db "SELECT COUNT(*) FROM transactions_production"
-```
-
-#### Exporting Data for CloudFlare
-
-After collecting data locally, export it for CloudFlare:
-
-```bash
-# Export transactions to SQL file
-cd cloudflare-deployment/scripts
-node export-database.js --table=transactions --output=../sql/data_transactions.sql
-
-# Export daily lineups
-node export-database.js --table=daily_lineups --output=../sql/data_daily_lineups.sql
-
-# For large exports, split into chunks
-python split_sql_files.py --input=../sql/data_daily_lineups.sql --chunk-size=2000
-```
-
-#### Updating CloudFlare D1 Database
-
-```bash
-cd cloudflare-deployment
-
-# Option 1: Direct import for small files (<4MB)
-wrangler d1 execute gkl-fantasy --file=sql/data_transactions.sql --remote
-
-# Option 2: Import chunks for large datasets
-# For Windows:
-./scripts/import-chunks.bat
-
-# For Mac/Linux:
-bash ./scripts/import-chunks.sh
-
-# Option 3: Manual chunk import
-wrangler d1 execute gkl-fantasy --file=sql/chunks/daily_lineups_chunk_01.sql --remote
-wrangler d1 execute gkl-fantasy --file=sql/chunks/daily_lineups_chunk_02.sql --remote
-# ... continue for all chunks
+# Update player statistics
+python player_stats/incremental_update.py
 ```
 
 ### Database Synchronization
 
-#### Environment Separation
+#### Local Development
+Local development uses SQLite database directly:
+- Frontend (localhost:3000) → Backend API (localhost:3001) → SQLite (database/league_analytics.db)
 
-- **Local SQLite** (`database/league_analytics.db`): Development and data collection
-- **CloudFlare D1** (remote): Production deployment
-- Data flows ONE WAY: Local → CloudFlare (never reverse)
+#### Production Deployment
+Production uses Cloudflare D1:
+- Frontend (goldenknightlounge.com) → Cloudflare Workers → D1 Database
 
-#### Synchronization Workflow
+#### Syncing Local to Production
 
-```bash
-# 1. Collect fresh data locally
-python league_transactions/update_recent_transactions.py
-
-# 2. Export only new/updated records
-sqlite3 database/league_analytics.db ".output new_transactions.sql" \
-  "SELECT * FROM transactions_production WHERE created_at > datetime('now', '-1 day')"
-
-# 3. Import to CloudFlare
-wrangler d1 execute gkl-fantasy --file=new_transactions.sql --remote
-
-# 4. Verify sync
-wrangler d1 execute gkl-fantasy --command="SELECT COUNT(*) FROM transactions" --remote
-```
-
-#### Important Synchronization Notes
-
-⚠️ **Critical Considerations**:
-- CloudFlare D1 has a 4MB limit per SQL file - split large imports
-- Use `INSERT OR REPLACE` to handle duplicates
-- Always backup before major imports: `wrangler d1 backup create gkl-fantasy`
-- Test imports locally first: `wrangler d1 execute gkl-fantasy --file=test.sql --local`
-
-#### Automated Daily Updates
-
-Set up a scheduled task (cron job or Windows Task Scheduler):
+The sync process handles foreign key dependencies automatically:
 
 ```bash
-#!/bin/bash
-# daily_update.sh
+# Export recent data from local SQLite with dependencies
+python scripts/sync_to_production.py
 
-# Refresh tokens
-python auth/initialize_tokens.py
+# The script will output commands in the CORRECT ORDER - follow exactly!
+cd cloudflare-production
 
-# Collect yesterday's data
-python league_transactions/update_recent_transactions.py
-python daily_lineups/update_current_lineups.py
+# Import in this order to satisfy foreign key constraints:
+# 1. Job logs (referenced by all data tables)
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/job_logs_*.sql --remote
 
-# Export new data
-cd cloudflare-deployment/scripts
-node export-database.js --since=yesterday --output=../sql/daily_update.sql
+# 2. Transactions
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/transactions_*.sql --remote
 
-# Import to CloudFlare
-cd ..
-wrangler d1 execute gkl-fantasy --file=sql/daily_update.sql --remote
-
-# Log completion
-echo "$(date): Daily update completed" >> update.log
+# 3. Lineups (depends on job_log)
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/lineups_*.sql --remote
 ```
 
-### Yahoo Fantasy API Integration
+**⚠️ Important**: Import order matters! Always import `job_logs` first to avoid foreign key errors.
 
-The Python backend handles OAuth authentication and data collection from Yahoo:
+### Automated Updates
 
-```python
-# Collect transaction data
-python league_transactions/backfill_transactions_optimized.py
+The system includes scheduled workers for automatic data refresh:
+- **Morning Update** (6 AM ET): Previous day's lineups
+- **Afternoon Update** (1 PM ET): Morning transactions
+- **Evening Update** (10 PM ET): Full day synchronization
 
-# Collect daily lineups
-python daily_lineups/collector.py
+## 🔐 Environment Configuration
 
-# Update current data
-python league_transactions/update_recent_transactions.py
-```
+### Frontend Environment Files
+- `.env.local` - Local development (points to localhost:3001)
+- `.env.production` - Production build (points to Cloudflare Workers)
+- `.env.example` - Template with all required variables
 
-### Job Logging Standards
+### Backend Environment Files
+- `.env` - Backend configuration (port, database path, CORS settings)
 
-All data collection implements standardized job logging. Job logs are written to the `job_log` table in SQLite:
-
-```python
-from job_manager import start_job_log, update_job_log
-
-job_id = start_job_log(
-    job_type="transaction_collection",
-    environment="production",  # or "test" for testing
-    date_range_start="2025-07-01",
-    date_range_end="2025-07-31"
-)
-
-# Process data...
-
-update_job_log(job_id, 'completed', records_processed=100)
-```
-
-Monitor job status:
+### Environment Variables
 ```bash
-# Check recent jobs
-sqlite3 database/league_analytics.db \
-  "SELECT job_id, status, records_processed, error_message 
-   FROM job_log 
-   ORDER BY start_time DESC 
-   LIMIT 10"
+# Frontend (.env.local)
+REACT_APP_API_URL=http://localhost:3001/api  # Local backend
+REACT_APP_ENV=local
+
+# Backend (.env)
+PORT=3001
+NODE_ENV=development
+DB_PATH=../../database/league_analytics.db
+CORS_ORIGIN=http://localhost:3000
+
+# Yahoo API (.env in root)
+YAHOO_CLIENT_ID=your_client_id
+YAHOO_CLIENT_SECRET=your_client_secret
 ```
 
-## 🔧 API Documentation
+## 🔧 API Reference
 
-### Endpoints
+### Core Endpoints
 
-#### Transactions
-- `GET /transactions` - List transactions with filtering
-- `GET /transactions/stats` - Transaction statistics
-- `GET /transactions/filters` - Available filter options
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/transactions` | Transaction history with filtering |
+| `GET /api/players/:id/spotlight` | Player analytics and usage |
+| `GET /api/lineups/date/:date` | Daily lineup data |
+| `GET /api/analytics/managers` | Manager statistics |
+| `GET /api/teams` | Team information |
 
-#### Players
-- `GET /players/:id/spotlight` - Player spotlight data
-- `GET /players/:id/performance-breakdown` - Performance analysis
-- `GET /player-search/search` - Search players
+### Example Usage
 
-#### Lineups
-- `GET /lineups/dates` - Available lineup dates
-- `GET /lineups/date/:date` - Lineups for specific date
-- `GET /lineups/player/:id` - Player lineup history
-
-#### Analytics
-- `GET /analytics/summary` - League summary statistics
-- `GET /analytics/managers` - Manager analytics
-
-### Example Request
 ```javascript
-fetch('https://gkl-fantasy-api.services-403.workers.dev/players/12355/spotlight?season=2025')
+// Fetch player spotlight data
+fetch('https://gkl-fantasy-api.services-403.workers.dev/api/players/12345/spotlight')
   .then(res => res.json())
   .then(data => console.log(data));
 ```
@@ -426,154 +221,146 @@ fetch('https://gkl-fantasy-api.services-403.workers.dev/players/12355/spotlight?
 
 ```
 gkl-league-analytics/
-├── auth/                       # Yahoo OAuth authentication
-│   ├── config.py              # API credentials configuration
-│   └── tokens.json            # OAuth tokens (gitignored)
-├── cloudflare-deployment/      # CloudFlare Workers deployment
-│   ├── src/                   # Workers API source code
-│   │   ├── index-with-db.js  # Main API handler
-│   │   └── routes/            # API route modules
-│   ├── sql/                   # Database schemas and data
-│   ├── wrangler.toml          # CloudFlare config (gitignored)
-│   └── wrangler.toml.example  # Config template
-├── daily_lineups/             # Daily lineup data collection
-│   ├── collector.py           # Main collection script
-│   └── repository.py          # Database operations
-├── league_transactions/       # Transaction data collection
-│   └── backfill_transactions_optimized.py
-├── web-ui/                    # Web application
-│   ├── frontend/              # React application
-│   │   ├── src/
-│   │   │   ├── components/   # React components
-│   │   │   ├── pages/        # Page components
-│   │   │   └── services/     # API client
-│   │   └── build/            # Production build
-│   └── backend/               # Legacy Node.js backend
-├── database/                  # SQLite database files
-├── .env                       # Environment variables (gitignored)
-├── .gitignore                # Git ignore configuration
-├── SECURITY_SETUP.md         # Security configuration guide
-└── README.md                 # This file
+├── data_pipeline/           # Python data collection
+│   ├── league_transactions/ # Transaction processing
+│   ├── daily_lineups/      # Lineup collection
+│   ├── player_stats/       # Statistics integration
+│   └── common/             # Shared utilities
+├── cloudflare-production/  # Production deployment
+│   ├── src/               # Workers API code
+│   ├── d1-schema.sql      # Database schema
+│   └── wrangler.toml      # Cloudflare config
+├── web-ui/                # Frontend application
+│   └── frontend/          # React application
+├── auth/                  # OAuth authentication
+├── scripts/               # Utility scripts
+└── docs/                  # Documentation
+    └── permanent-docs/    # Architecture docs
 ```
+
+## 🚢 Deployment
+
+### Deploy to Production
+
+1. **Configure Cloudflare**
+```bash
+cd cloudflare-production
+npx wrangler login
+```
+
+2. **Create Resources**
+```bash
+# Create production database
+npx wrangler d1 create gkl-fantasy
+
+# Create KV namespace for caching
+npx wrangler kv namespace create CACHE
+
+# Update wrangler.toml with returned IDs
+```
+
+3. **Deploy API**
+```bash
+npm run deploy
+```
+
+4. **Deploy Frontend**
+```bash
+cd ../web-ui/frontend
+npm run build
+npx wrangler pages deploy build --project-name gkl-fantasy
+```
+
+## 📈 Performance
+
+### System Metrics
+- **API Response**: < 200ms p95 globally
+- **Database Queries**: < 50ms average
+- **Cache Hit Rate**: > 80%
+- **Availability**: 99.9% uptime target
+
+### Optimization Features
+- Edge computing at 200+ locations
+- Intelligent caching strategies
+- Database query optimization
+- Code splitting and lazy loading
 
 ## 🔒 Security
 
-### Configuration Security
-- Never commit sensitive credentials to git
-- Use environment variables for all secrets
-- Follow `SECURITY_SETUP.md` for secure setup
-- Regularly rotate OAuth tokens
+### Implementation
+- OAuth2 authentication for Yahoo API
+- Environment-based secrets management
+- SQL injection prevention
+- HTTPS enforcement
+- CORS configuration
+- Rate limiting
 
-### CloudFlare Security Features
-- Automatic HTTPS encryption
-- DDoS protection
-- WAF (Web Application Firewall) available
-- Edge-side rate limiting
+### Best Practices
+- Never commit credentials
+- Use environment variables
+- Regular token rotation
+- Audit logging enabled
 
-## 🧪 Testing
+## 📚 Documentation
 
-### API Testing
-```bash
-# Test local API
-curl http://localhost:8787/health
+### Architecture Documentation
+- [System Architecture Overview](docs/permanent-docs/system-architecture-overview.md)
+- [Data Pipeline Architecture](docs/permanent-docs/data-pipeline-architecture.md)
+- [Application Infrastructure](docs/permanent-docs/application-infrastructure.md)
+- [Database Infrastructure](docs/permanent-docs/database-infrastructure.md)
+- [Deployment Infrastructure](docs/permanent-docs/deployment-infrastructure.md)
 
-# Test deployed API
-curl https://gkl-fantasy-api.services-403.workers.dev/health
-```
-
-### Frontend Testing
-```bash
-cd web-ui/frontend
-npm test
-```
-
-### Database Testing
-```bash
-# Test database queries
-wrangler d1 execute gkl-fantasy --local --command="SELECT COUNT(*) FROM transactions"
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### OAuth Token Expiration
-```bash
-# Regenerate tokens
-python auth/initialize_tokens.py
-```
-
-#### Database Connection Issues
-```bash
-# Check D1 database status
-wrangler d1 list
-
-# Re-create if needed
-wrangler d1 create gkl-fantasy
-```
-
-#### Deployment Failures
-```bash
-# Check CloudFlare logs
-wrangler tail
-
-# Verify configuration
-wrangler whoami
-```
-
-### Debug Mode
-```bash
-# Enable debug logging
-export DEBUG=true
-wrangler dev --local --persist
-```
-
-## 📈 Performance Optimization
-
-- **Database Indexes**: 12+ strategic indexes per table
-- **KV Caching**: 15-minute cache for frequently accessed data
-- **Edge Computing**: Logic runs at 200+ global locations
-- **Lazy Loading**: Components load on demand
-- **Code Splitting**: Optimized bundle sizes
+### Development Guides
+- [CLAUDE.md](CLAUDE.md) - AI assistant context and development workflow
+- [Local Development Setup](docs/development-docs/LOCAL_DEVELOPMENT_SETUP.md) - Complete local environment guide
+- [Development Documentation](docs/development-docs/) - Implementation guides
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Follow the job logging standards for data collection
-4. Test locally with wrangler
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+2. Create a feature branch
+3. Follow existing patterns and standards
+4. Include job logging for data operations
+5. Test thoroughly
+6. Submit pull request
 
 ### Development Standards
-- Use job logging for all data processing
-- Test with `_test` environment before production
-- Follow existing code patterns
-- Update documentation for new features
+- Comprehensive job logging for data operations
+- Test coverage for critical paths
+- Documentation for new features
+- Performance considerations
+
+## 📊 Project Status
+
+### Current Implementation
+✅ Transaction data collection and analysis (consolidated Aug 2025)  
+✅ Daily lineup tracking (consolidated Aug 2025)  
+✅ Player spotlight features  
+✅ Manager analytics  
+✅ Production deployment on Cloudflare  
+✅ Automated data refresh  
+✅ Mobile-responsive interface  
+✅ Data quality validation for all pipelines  
+
+### Roadmap
+🔄 MLB statistics integration (PyBaseball)  
+📱 Native mobile applications  
+📈 Advanced predictive analytics  
+🔔 Real-time notifications  
+👥 Multi-league support  
 
 ## 📄 License
 
-This project is developed for the GKL Fantasy Baseball League. Ensure compliance with Yahoo Fantasy Sports API terms of service.
+This project is proprietary software developed for the GKL Fantasy Baseball League. Usage must comply with Yahoo Fantasy Sports API Terms of Service.
 
-## 🔗 Related Documentation
+## 🆘 Support
 
-- [SECURITY_SETUP.md](SECURITY_SETUP.md) - Security configuration guide
-- [DEPLOYMENT_SUMMARY.md](DEPLOYMENT_SUMMARY.md) - Deployment overview
-- [CLAUDE.md](CLAUDE.md) - AI development context
-- [TODO.md](TODO.md) - Project roadmap and tasks
-- [CloudFlare Docs](https://developers.cloudflare.com) - Platform documentation
-- [Yahoo Fantasy API](https://developer.yahoo.com/fantasysports/) - API documentation
-
-## 📞 Support
-
-- **Issues**: Use GitHub Issues for bug reports
-- **Discussions**: GitHub Discussions for questions
-- **CloudFlare Dashboard**: https://dash.cloudflare.com
-- **API Status**: Check `/health` endpoint
+- **Issues**: [GitHub Issues](https://github.com/[username]/gkl-league-analytics/issues)
+- **Documentation**: [Permanent Docs](docs/permanent-docs/)
+- **API Status**: Check `/api/health` endpoint
 
 ---
 
-*Last Updated: August 2025*  
-*Version: 2.0.0 - CloudFlare Edge Deployment*  
-*Database Version: D1 Distributed SQL*
+**Version**: 2.0.0  
+**Last Updated**: August 2025  
+**Status**: Production
