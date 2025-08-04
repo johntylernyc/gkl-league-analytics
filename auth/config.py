@@ -28,12 +28,23 @@ CLIENT_ID = os.getenv('YAHOO_CLIENT_ID')
 CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET')
 REDIRECT_URI = os.getenv('YAHOO_REDIRECT_URI', 'https://createdbydata.com')
 AUTHORIZATION_CODE = os.getenv('YAHOO_AUTHORIZATION_CODE')
+REFRESH_TOKEN = os.getenv('YAHOO_REFRESH_TOKEN')
 
-# Validate required environment variables
-required_vars = ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET', 'YAHOO_AUTHORIZATION_CODE']
+# For GitHub Actions, use refresh token; for local development, use authorization code
+if REFRESH_TOKEN:
+    # GitHub Actions environment
+    required_vars = ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET', 'YAHOO_REFRESH_TOKEN']
+    AUTHORIZATION_CODE = None  # Not needed when using refresh token
+else:
+    # Local development environment
+    required_vars = ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET', 'YAHOO_AUTHORIZATION_CODE']
+
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
-    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}. Please create .env file with these variables.")
+    if REFRESH_TOKEN:
+        raise ValueError(f"Missing required environment variables for GitHub Actions: {', '.join(missing_vars)}. Please add these GitHub secrets.")
+    else:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}. Please create .env file with these variables.")
 
 # ---- API ENDPOINTS ----
 TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token'
@@ -49,7 +60,7 @@ LEAGUE_KEY = DEFAULT_LEAGUE_KEY
 
 # Export the centralized configurations for other modules
 __all__ = [
-    'CLIENT_ID', 'CLIENT_SECRET', 'REDIRECT_URI', 'AUTHORIZATION_CODE',
+    'CLIENT_ID', 'CLIENT_SECRET', 'REDIRECT_URI', 'AUTHORIZATION_CODE', 'REFRESH_TOKEN',
     'TOKEN_URL', 'BASE_FANTASY_URL', 
     'LEAGUE_KEY', 'DEFAULT_LEAGUE_KEY',
     'LEAGUE_KEYS', 'SEASON_DATES'
