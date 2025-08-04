@@ -193,7 +193,7 @@ class D1Connection:
             params: Query parameters
             
         Returns:
-            Query result dictionary
+            Query result dictionary with meta information
         """
         data = {
             "sql": query,
@@ -204,8 +204,29 @@ class D1Connection:
         
         result = self._make_request("/query", data)
         
-        # Return the result data
-        return result.get('result', {})
+        # D1 returns result as a list with one item for single queries
+        result_data = result.get('result', [])
+        if isinstance(result_data, list) and len(result_data) > 0:
+            query_result = result_data[0]
+            # Flatten meta information to top level for easier access
+            meta = query_result.get('meta', {})
+            return {
+                'results': query_result.get('results', []),
+                'success': query_result.get('success', True),
+                'changes': meta.get('changes', 0),
+                'last_row_id': meta.get('last_row_id'),
+                'rows_read': meta.get('rows_read', 0),
+                'rows_written': meta.get('rows_written', 0)
+            }
+        else:
+            # Fallback for unexpected response format
+            return {
+                'results': [],
+                'success': False,
+                'changes': 0,
+                'rows_read': 0,
+                'rows_written': 0
+            }
     
     @retry_d1_operation()
     def execute_batch(self, statements: List[Tuple[str, List[Any]]]) -> List[Dict]:
@@ -244,9 +265,20 @@ class D1Connection:
             
             result = self._make_request("/batch", data)
             
-            # Collect results
+            # Process batch results - D1 batch returns list of results
             batch_results = result.get('result', [])
-            all_results.extend(batch_results)
+            for batch_result in batch_results:
+                # Flatten meta information similar to single query
+                meta = batch_result.get('meta', {})
+                processed_result = {
+                    'results': batch_result.get('results', []),
+                    'success': batch_result.get('success', True),
+                    'changes': meta.get('changes', 0),
+                    'last_row_id': meta.get('last_row_id'),
+                    'rows_read': meta.get('rows_read', 0),
+                    'rows_written': meta.get('rows_written', 0)
+                }
+                all_results.append(processed_result)
         
         return all_results
     
