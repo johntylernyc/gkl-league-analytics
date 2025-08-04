@@ -156,6 +156,14 @@ jobs:
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Transaction update failed with exit code $?"
       
+      - name: Upload transaction database
+        if: needs.determine-refresh-params.outputs.environment == 'production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-database
+          path: database/league_analytics.db
+          retention-days: 1
+      
       - name: Debug output
         if: always()
         run: |
@@ -207,6 +215,14 @@ jobs:
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Lineup update failed with exit code $?"
       
+      - name: Upload lineup database
+        if: needs.determine-refresh-params.outputs.environment == 'production'  
+        uses: actions/upload-artifact@v4
+        with:
+          name: lineup-database
+          path: database/league_analytics.db
+          retention-days: 1
+      
       - name: Debug output
         if: always()
         run: |
@@ -216,7 +232,7 @@ jobs:
 
   refresh-stats:
     name: Refresh Player Stats
-    needs: determine-refresh-params
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
     runs-on: ubuntu-latest
     
     steps:
@@ -258,6 +274,14 @@ jobs:
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Stats update failed with exit code $?"
       
+      - name: Upload stats database
+        if: needs.determine-refresh-params.outputs.environment == 'production'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stats-database
+          path: database/league_analytics.db
+          retention-days: 1
+      
       - name: Debug output
         if: always()
         run: |
@@ -267,7 +291,7 @@ jobs:
 
   sync-to-cloudflare:
     name: Sync to CloudFlare D1
-    needs: [refresh-transactions, refresh-lineups, refresh-stats]
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups, refresh-stats]
     runs-on: ubuntu-latest
     if: needs.determine-refresh-params.outputs.environment == 'production'
     
@@ -293,40 +317,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv
       
-      - name: Create test database
-        run: |
-          python scripts/create_test_database.py
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-database'
+          path: artifacts/
+          merge-multiple: true
       
-      - name: Run data refresh jobs
-        env:
-          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
-          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
-          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
-          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
+      - name: Merge databases and prepare for export
         run: |
-          echo "Re-running data collection for CloudFlare sync..."
+          echo "Setting up database for CloudFlare export..."
+          python scripts/create_test_database.py
           
-          # Run all three incremental updates
-          python league_transactions/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
-          
-          echo "Transactions completed"
-          
-          python daily_lineups/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
-          
-          echo "Lineups completed"
-          
-          python player_stats/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
-          
-          echo "Stats completed"
+          # Copy the stats database (which includes all data from dependent jobs)
+          if [ -f "artifacts/league_analytics.db" ]; then
+            cp artifacts/league_analytics.db database/league_analytics.db
+            echo "✅ Using merged database from previous jobs"
+          else
+            echo "❌ No database found in artifacts"
+            ls -la artifacts/
+          fi
       
       - name: Export and sync to CloudFlare D1
         env:
