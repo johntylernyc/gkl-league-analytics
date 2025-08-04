@@ -42,17 +42,28 @@ def export_recent_data():
     print(f"🕐 Exporting data from job: {last_job_time}")
     
     # First, get all unique job_ids that will be referenced
-    cursor.execute("""
-        SELECT DISTINCT job_id FROM (
-            SELECT DISTINCT job_id FROM league_transactions WHERE created_at >= ?
-            UNION
-            SELECT DISTINCT job_id FROM daily_lineups WHERE date >= date('now', '-3 days')
-            UNION  
-            SELECT DISTINCT job_id FROM daily_gkl_player_stats WHERE date >= date('now', '-7 days')
-        ) WHERE job_id IS NOT NULL
-    """, (last_job_time,))
+    job_ids = set()
     
-    job_ids = [row[0] for row in cursor.fetchall()]
+    # Get job_ids from transactions
+    cursor.execute("""
+        SELECT DISTINCT job_id FROM league_transactions 
+        WHERE created_at >= ? AND job_id IS NOT NULL
+    """, (last_job_time,))
+    job_ids.update([row[0] for row in cursor.fetchall()])
+    
+    # Get job_ids from lineups
+    cursor.execute("""
+        SELECT DISTINCT job_id FROM daily_lineups 
+        WHERE date >= date('now', '-3 days') AND job_id IS NOT NULL
+    """)
+    job_ids.update([row[0] for row in cursor.fetchall()])
+    
+    # Get job_ids from stats
+    cursor.execute("""
+        SELECT DISTINCT job_id FROM daily_gkl_player_stats 
+        WHERE date >= date('now', '-7 days') AND job_id IS NOT NULL
+    """)
+    job_ids.update([row[0] for row in cursor.fetchall()])
     
     if job_ids:
         print(f"📋 Found {len(job_ids)} job IDs to ensure exist in D1")
