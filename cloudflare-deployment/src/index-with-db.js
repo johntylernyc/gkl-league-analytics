@@ -662,8 +662,9 @@ export default {
               benched: 0,
               minor_leagues: 0,
               injured_list: 0,
-              not_rostered: pastDays, // Initially all past days are not rostered
+              not_rostered: 0, // Will be calculated after processing all roster data
               future_days: futureDays,
+              data_days: dataDaysInMonth, // Track how many days have data
               teams: {},
               positions: []
             };
@@ -683,8 +684,7 @@ export default {
               };
             }
             
-            // Subtract rostered days from not_rostered count
-            month.not_rostered -= row.days;
+            // Don't modify not_rostered here - we'll calculate it after all data is processed
             
             if (!['BN', 'IL', 'IL10', 'IL60', 'NA'].includes(row.selected_position)) {
               month.started += row.days;
@@ -716,10 +716,22 @@ export default {
             });
           }
           
-          // Calculate team percentages for each month
+          // Calculate team percentages, not_rostered days, and sort positions chronologically for each month
           for (const month of Object.values(monthlyGrouped)) {
+            // Calculate total rostered days for this month
+            const totalRosteredDays = month.started + month.benched + month.minor_leagues + month.injured_list;
+            
+            // Calculate not_rostered as the difference between data days and rostered days
+            // This ensures we only show "not rostered" for days where data exists but player wasn't on a team
+            month.not_rostered = Math.max(0, month.data_days - totalRosteredDays);
+            
+            // Sort overall positions chronologically
+            month.positions.sort((a, b) => (a.period_start || '').localeCompare(b.period_start || ''));
+            
             for (const team of Object.values(month.teams)) {
               team.percentage = month.total_days > 0 ? (team.days / month.total_days * 100) : 0;
+              // Sort team positions chronologically  
+              team.positions.sort((a, b) => (a.period_start || '').localeCompare(b.period_start || ''));
             }
           }
           
@@ -925,9 +937,21 @@ export default {
         const season = parseInt(url.searchParams.get('season')) || 2025;
         
         try {
-          // Use similar logic to spotlight API for day counts
+          // Get current team for this player
+          const currentTeamResult = await env.DB.prepare(`
+            SELECT team_name
+            FROM daily_lineups
+            WHERE player_id = ?
+            ORDER BY date DESC
+            LIMIT 1
+          `).bind(playerId).first();
+          
+          const currentTeam = currentTeamResult?.team_name;
+          
+          // Get usage breakdown by team
           const usageByTeam = await env.DB.prepare(`
             SELECT 
+              team_name,
               COUNT(*) as total_days,
               SUM(CASE WHEN selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA') THEN 1 ELSE 0 END) as started_days,
               SUM(CASE WHEN selected_position = 'BN' THEN 1 ELSE 0 END) as benched_days,
@@ -935,7 +959,34 @@ export default {
               SUM(CASE WHEN selected_position IN ('IL', 'IL10', 'IL60') THEN 1 ELSE 0 END) as injured_days
             FROM daily_lineups
             WHERE player_id = ?
-          `).bind(playerId).first();
+            GROUP BY team_name
+          `).bind(playerId).all();
+          
+          // Separate current team vs other teams
+          let currentTeamUsage = { total_days: 0, started_days: 0, benched_days: 0, minor_league_days: 0, injured_days: 0 };
+          let otherTeamsUsage = { total_days: 0, started_days: 0, benched_days: 0, minor_league_days: 0, injured_days: 0 };
+          const otherTeamsList = [];
+          
+          for (const team of usageByTeam.results || []) {
+            if (team.team_name === currentTeam) {
+              currentTeamUsage = team;
+            } else {
+              otherTeamsUsage.total_days += team.total_days;
+              otherTeamsUsage.started_days += team.started_days;
+              otherTeamsUsage.benched_days += team.benched_days;
+              otherTeamsUsage.minor_league_days += team.minor_league_days;
+              otherTeamsUsage.injured_days += team.injured_days;
+              
+              otherTeamsList.push({
+                team_name: team.team_name,
+                days: team.total_days,
+                started_days: team.started_days,
+                benched_days: team.benched_days,
+                minor_league_days: team.minor_league_days,
+                injured_days: team.injured_days
+              });
+            }
+          }
           
           // Get player type
           const playerInfo = await env.DB.prepare(`
@@ -947,8 +998,8 @@ export default {
           
           const isPitcher = playerInfo?.position_type === 'P';
           
-          // Get stats aggregated by roster situation
-          const getStatsForSituation = async (situationFilter) => {
+          // Get stats aggregated by roster situation and team
+          const getStatsForSituation = async (situationFilter, teamFilter = '') => {
             try {
               const statsResult = await env.DB.prepare(`
                 SELECT 
@@ -975,20 +1026,56 @@ export default {
                   COALESCE(SUM(s.pitching_quality_starts), 0) as quality_starts
                 FROM daily_gkl_player_stats s
                 JOIN daily_lineups l ON s.yahoo_player_id = l.player_id AND s.date = l.date
-                WHERE s.yahoo_player_id = ? ${situationFilter}
+                WHERE s.yahoo_player_id = ? ${situationFilter} ${teamFilter}
               `).bind(playerId).first();
               return statsResult || {};
             } catch (error) {
-              console.log('Stats query failed for situation:', situationFilter, error);
+              console.log('Stats query failed for situation:', situationFilter, teamFilter, error);
               return {};
             }
           };
 
-          // Get stats for each roster situation
-          const startedStats = await getStatsForSituation("AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')");
-          const benchedStats = await getStatsForSituation("AND l.selected_position = 'BN'");
-          const minorLeagueStats = await getStatsForSituation("AND l.selected_position = 'NA'");
-          const injuredListStats = await getStatsForSituation("AND l.selected_position IN ('IL', 'IL10', 'IL60')");
+          // Get stats for current team only
+          const currentTeamStartedStats = await getStatsForSituation(
+            "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
+            currentTeam ? `AND l.team_name = '${currentTeam.replace(/'/g, "''")}'` : ''
+          );
+          const currentTeamBenchedStats = await getStatsForSituation(
+            "AND l.selected_position = 'BN'", 
+            currentTeam ? `AND l.team_name = '${currentTeam.replace(/'/g, "''")}'` : ''
+          );
+          
+          // Get stats for other teams (aggregate)
+          const otherTeamsStartedStats = await getStatsForSituation(
+            "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
+            currentTeam ? `AND l.team_name != '${currentTeam.replace(/'/g, "''")}'` : ''
+          );
+          const otherTeamsBenchedStats = await getStatsForSituation(
+            "AND l.selected_position = 'BN'", 
+            currentTeam ? `AND l.team_name != '${currentTeam.replace(/'/g, "''")}'` : ''
+          );
+          
+          // Get stats for each individual other team (for expandable view)
+          const otherTeamsDetailedStats = [];
+          for (const team of otherTeamsList) {
+            const teamStartedStats = await getStatsForSituation(
+              "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
+              `AND l.team_name = '${team.team_name.replace(/'/g, "''")}'`
+            );
+            const teamBenchedStats = await getStatsForSituation(
+              "AND l.selected_position = 'BN'", 
+              `AND l.team_name = '${team.team_name.replace(/'/g, "''")}'`
+            );
+            
+            otherTeamsDetailedStats.push({
+              team_name: team.team_name,
+              days: team.days,
+              started_days: team.started_days,
+              benched_days: team.benched_days,
+              started_stats: teamStartedStats,
+              benched_stats: teamBenchedStats
+            });
+          }
 
           // Calculation functions
           const calculateAvg = (hits, atBats) => atBats > 0 ? hits / atBats : 0;
@@ -1114,18 +1201,103 @@ export default {
                 }
               },
               other_roster: {
-                days: 0,
+                days: otherTeamsList.reduce((sum, team) => sum + team.days, 0),
                 stats: {
                   batting: {
-                    R: 0, H: 0, '3B': 0, HR: 0, RBI: 0, SB: 0,
-                    AVG: 0, OBP: 0, SLG: 0
+                    R: (otherTeamsStartedStats?.runs || 0) + (otherTeamsBenchedStats?.runs || 0),
+                    H: (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
+                    '3B': (otherTeamsStartedStats?.triples || 0) + (otherTeamsBenchedStats?.triples || 0),
+                    HR: (otherTeamsStartedStats?.home_runs || 0) + (otherTeamsBenchedStats?.home_runs || 0),
+                    RBI: (otherTeamsStartedStats?.rbis || 0) + (otherTeamsBenchedStats?.rbis || 0),
+                    SB: (otherTeamsStartedStats?.stolen_bases || 0) + (otherTeamsBenchedStats?.stolen_bases || 0),
+                    AVG: calculateAvg(
+                      (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
+                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0)
+                    ),
+                    OBP: calculateOBP(
+                      (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
+                      (otherTeamsStartedStats?.walks || 0) + (otherTeamsBenchedStats?.walks || 0),
+                      (otherTeamsStartedStats?.hbp || 0) + (otherTeamsBenchedStats?.hbp || 0),
+                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0),
+                      (otherTeamsStartedStats?.sf || 0) + (otherTeamsBenchedStats?.sf || 0)
+                    ),
+                    SLG: calculateSLG(
+                      (otherTeamsStartedStats?.total_bases || 0) + (otherTeamsBenchedStats?.total_bases || 0),
+                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0)
+                    )
                   },
                   pitching: {
-                    APP: 0, W: 0, SV: 0, K: 0, HLD: 0,
-                    ERA: 0, WHIP: 0, 'K/BB': 0, QS: 0
+                    APP: (otherTeamsStartedStats?.appearances || 0) + (otherTeamsBenchedStats?.appearances || 0),
+                    W: (otherTeamsStartedStats?.wins || 0) + (otherTeamsBenchedStats?.wins || 0),
+                    SV: (otherTeamsStartedStats?.saves || 0) + (otherTeamsBenchedStats?.saves || 0),
+                    K: (otherTeamsStartedStats?.strikeouts || 0) + (otherTeamsBenchedStats?.strikeouts || 0),
+                    HLD: (otherTeamsStartedStats?.holds || 0) + (otherTeamsBenchedStats?.holds || 0),
+                    ERA: calculateERA(
+                      (otherTeamsStartedStats?.earned_runs || 0) + (otherTeamsBenchedStats?.earned_runs || 0),
+                      (otherTeamsStartedStats?.innings_pitched || 0) + (otherTeamsBenchedStats?.innings_pitched || 0)
+                    ),
+                    WHIP: calculateWHIP(
+                      (otherTeamsStartedStats?.hits_allowed || 0) + (otherTeamsBenchedStats?.hits_allowed || 0),
+                      (otherTeamsStartedStats?.pitching_walks || 0) + (otherTeamsBenchedStats?.pitching_walks || 0),
+                      (otherTeamsStartedStats?.innings_pitched || 0) + (otherTeamsBenchedStats?.innings_pitched || 0)
+                    ),
+                    'K/BB': calculateKBB(
+                      (otherTeamsStartedStats?.strikeouts || 0) + (otherTeamsBenchedStats?.strikeouts || 0),
+                      (otherTeamsStartedStats?.pitching_walks || 0) + (otherTeamsBenchedStats?.pitching_walks || 0)
+                    ),
+                    QS: (otherTeamsStartedStats?.quality_starts || 0) + (otherTeamsBenchedStats?.quality_starts || 0)
                   }
                 },
-                teams: []
+                teams: otherTeamsDetailedStats.map(team => ({
+                  team_name: team.team_name,
+                  days: team.days,
+                  stats: {
+                    batting: {
+                      R: (team.started_stats?.runs || 0) + (team.benched_stats?.runs || 0),
+                      H: (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
+                      '3B': (team.started_stats?.triples || 0) + (team.benched_stats?.triples || 0),
+                      HR: (team.started_stats?.home_runs || 0) + (team.benched_stats?.home_runs || 0),
+                      RBI: (team.started_stats?.rbis || 0) + (team.benched_stats?.rbis || 0),
+                      SB: (team.started_stats?.stolen_bases || 0) + (team.benched_stats?.stolen_bases || 0),
+                      AVG: calculateAvg(
+                        (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
+                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0)
+                      ),
+                      OBP: calculateOBP(
+                        (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
+                        (team.started_stats?.walks || 0) + (team.benched_stats?.walks || 0),
+                        (team.started_stats?.hbp || 0) + (team.benched_stats?.hbp || 0),
+                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0),
+                        (team.started_stats?.sf || 0) + (team.benched_stats?.sf || 0)
+                      ),
+                      SLG: calculateSLG(
+                        (team.started_stats?.total_bases || 0) + (team.benched_stats?.total_bases || 0),
+                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0)
+                      )
+                    },
+                    pitching: {
+                      APP: (team.started_stats?.appearances || 0) + (team.benched_stats?.appearances || 0),
+                      W: (team.started_stats?.wins || 0) + (team.benched_stats?.wins || 0),
+                      SV: (team.started_stats?.saves || 0) + (team.benched_stats?.saves || 0),
+                      K: (team.started_stats?.strikeouts || 0) + (team.benched_stats?.strikeouts || 0),
+                      HLD: (team.started_stats?.holds || 0) + (team.benched_stats?.holds || 0),
+                      ERA: calculateERA(
+                        (team.started_stats?.earned_runs || 0) + (team.benched_stats?.earned_runs || 0),
+                        (team.started_stats?.innings_pitched || 0) + (team.benched_stats?.innings_pitched || 0)
+                      ),
+                      WHIP: calculateWHIP(
+                        (team.started_stats?.hits_allowed || 0) + (team.benched_stats?.hits_allowed || 0),
+                        (team.started_stats?.pitching_walks || 0) + (team.benched_stats?.pitching_walks || 0),
+                        (team.started_stats?.innings_pitched || 0) + (team.benched_stats?.innings_pitched || 0)
+                      ),
+                      'K/BB': calculateKBB(
+                        (team.started_stats?.strikeouts || 0) + (team.benched_stats?.strikeouts || 0),
+                        (team.started_stats?.pitching_walks || 0) + (team.benched_stats?.pitching_walks || 0)
+                      ),
+                      QS: (team.started_stats?.quality_starts || 0) + (team.benched_stats?.quality_starts || 0)
+                    }
+                  }
+                }))
               }
             },
             metadata: {

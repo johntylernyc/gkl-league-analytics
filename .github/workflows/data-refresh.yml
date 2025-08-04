@@ -1,0 +1,350 @@
+name: Scheduled Data Refresh
+
+on:
+  # Allow manual trigger with inputs
+  workflow_dispatch:
+    inputs:
+      refresh_type:
+        description: 'Type of refresh (morning/afternoon/night/manual)'
+        required: true
+        default: 'manual'
+        type: choice
+        options:
+          - morning
+          - afternoon
+          - night
+          - manual
+      environment:
+        description: 'Environment to run in'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - test
+      date_range:
+        description: 'Date range (start,end in YYYY-MM-DD format)'
+        required: false
+        type: string
+  
+  # Scheduled runs (backup in case CloudFlare Worker fails)
+  schedule:
+    # Run at 6:05 AM, 1:05 PM, and 10:05 PM ET (5 minutes after CloudFlare)
+    - cron: '5 10 * * *'   # 6:05 AM ET (EST)
+    - cron: '5 17 * * *'   # 1:05 PM ET (EST)
+    - cron: '5 2 * * *'    # 10:05 PM ET (EST, runs at 2:05 AM UTC next day)
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  determine-refresh-params:
+    name: Determine Refresh Parameters
+    runs-on: ubuntu-latest
+    outputs:
+      refresh_type: ${{ steps.params.outputs.refresh_type }}
+      start_date: ${{ steps.params.outputs.start_date }}
+      end_date: ${{ steps.params.outputs.end_date }}
+      environment: ${{ steps.params.outputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Determine parameters
+        id: params
+        run: |
+          # Get current time in ET
+          export TZ='America/New_York'
+          CURRENT_HOUR=$(date +%H)
+          TODAY=$(date +%Y-%m-%d)
+          
+          # Determine refresh type if not manually specified
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            if [ "$CURRENT_HOUR" -eq 6 ]; then
+              REFRESH_TYPE="morning"
+            elif [ "$CURRENT_HOUR" -eq 13 ]; then
+              REFRESH_TYPE="afternoon"
+            elif [ "$CURRENT_HOUR" -eq 22 ]; then
+              REFRESH_TYPE="night"
+            else
+              REFRESH_TYPE="adhoc"
+            fi
+          else
+            REFRESH_TYPE="${{ github.event.inputs.refresh_type || 'manual' }}"
+          fi
+          
+          # Determine date range
+          if [ -n "${{ github.event.inputs.date_range }}" ]; then
+            IFS=',' read -r START_DATE END_DATE <<< "${{ github.event.inputs.date_range }}"
+          else
+            case $REFRESH_TYPE in
+              morning)
+                # Full refresh: 7 days for stat corrections
+                START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
+                END_DATE=$TODAY
+                ;;
+              afternoon|night)
+                # Incremental: 3 days for lineup changes
+                START_DATE=$(date -d "3 days ago" +%Y-%m-%d)
+                END_DATE=$TODAY
+                ;;
+              *)
+                # Default: 2 days
+                START_DATE=$(date -d "2 days ago" +%Y-%m-%d)
+                END_DATE=$TODAY
+                ;;
+            esac
+          fi
+          
+          # Determine environment
+          ENVIRONMENT="${{ github.event.inputs.environment || 'production' }}"
+          
+          # Output parameters
+          echo "refresh_type=$REFRESH_TYPE" >> $GITHUB_OUTPUT
+          echo "start_date=$START_DATE" >> $GITHUB_OUTPUT
+          echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          
+          # Log parameters
+          echo "Refresh Type: $REFRESH_TYPE"
+          echo "Date Range: $START_DATE to $END_DATE"
+          echo "Environment: $ENVIRONMENT"
+
+  refresh-transactions:
+    name: Refresh Transactions
+    needs: determine-refresh-params
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv
+      
+      - name: Run transaction incremental update
+        env:
+          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
+          YAHOO_AUTHORIZATION_CODE: ${{ secrets.YAHOO_AUTHORIZATION_CODE }}
+        run: |
+          python league_transactions/incremental_update.py \
+            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
+            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: transaction-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
+          path: logs/transactions_*.log
+          retention-days: 7
+
+  refresh-lineups:
+    name: Refresh Daily Lineups
+    needs: determine-refresh-params
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv
+      
+      - name: Run lineup incremental update
+        env:
+          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
+          YAHOO_AUTHORIZATION_CODE: ${{ secrets.YAHOO_AUTHORIZATION_CODE }}
+        run: |
+          python daily_lineups/incremental_update.py \
+            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
+            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: lineup-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
+          path: logs/lineups_*.log
+          retention-days: 7
+
+  refresh-stats:
+    name: Refresh Player Stats
+    needs: determine-refresh-params
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv pybaseball
+      
+      - name: Run stats incremental update
+        run: |
+          python player_stats/incremental_update.py \
+            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
+            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: stats-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
+          path: logs/stats_*.log
+          retention-days: 7
+
+  database-backup:
+    name: Backup Database
+    needs: [refresh-transactions, refresh-lineups, refresh-stats]
+    runs-on: ubuntu-latest
+    if: needs.determine-refresh-params.outputs.environment == 'production'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Create database backup
+        run: |
+          BACKUP_NAME="league_analytics_$(date +%Y%m%d_%H%M%S).db"
+          cp database/league_analytics.db "database/backups/$BACKUP_NAME"
+          
+          # Keep only last 7 days of backups
+          find database/backups -name "*.db" -mtime +7 -delete
+      
+      - name: Upload backup to artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: database-backup-${{ needs.determine-refresh-params.outputs.refresh_type }}
+          path: database/backups/*.db
+          retention-days: 7
+
+  notify-completion:
+    name: Send Notifications
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups, refresh-stats]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [ "${{ needs.refresh-transactions.result }}" == "success" ] && \
+             [ "${{ needs.refresh-lineups.result }}" == "success" ] && \
+             [ "${{ needs.refresh-stats.result }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ All data refreshes completed successfully" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ Some data refreshes failed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Slack notification
+        if: vars.SLACK_WEBHOOK_URL != ''
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ steps.status.outputs.status }}
+          text: |
+            ${{ steps.status.outputs.message }}
+            Refresh Type: ${{ needs.determine-refresh-params.outputs.refresh_type }}
+            Date Range: ${{ needs.determine-refresh-params.outputs.start_date }} to ${{ needs.determine-refresh-params.outputs.end_date }}
+            Environment: ${{ needs.determine-refresh-params.outputs.environment }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: Send Discord notification
+        if: vars.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ steps.status.outputs.status }}"
+          if [ "$STATUS" == "success" ]; then
+            COLOR="3066993"
+          else
+            COLOR="15158332"
+          fi
+          
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"Data Refresh Complete\",
+                \"description\": \"${{ steps.status.outputs.message }}\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {
+                    \"name\": \"Refresh Type\",
+                    \"value\": \"${{ needs.determine-refresh-params.outputs.refresh_type }}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"Environment\",
+                    \"value\": \"${{ needs.determine-refresh-params.outputs.environment }}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"Date Range\",
+                    \"value\": \"${{ needs.determine-refresh-params.outputs.start_date }} to ${{ needs.determine-refresh-params.outputs.end_date }}\",
+                    \"inline\": false
+                  }
+                ],
+                \"footer\": {
+                  \"text\": \"GKL Fantasy Analytics\"
+                },
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            $DISCORD_WEBHOOK
