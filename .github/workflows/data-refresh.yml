@@ -139,30 +139,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv
       
-      - name: Create test database
-        run: |
-          python scripts/create_test_database.py
-      
-      - name: Run transaction incremental update
+      - name: Run transaction incremental update  
         env:
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
           YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
           YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
           YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
-          echo "Running transaction incremental update..."
-          python league_transactions/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Transaction update failed with exit code $?"
-      
-      - name: Upload transaction database
-        if: needs.determine-refresh-params.outputs.environment == 'production'
-        uses: actions/upload-artifact@v4
-        with:
-          name: transaction-database
-          path: database/league_analytics.db
-          retention-days: 1
+          echo "Running transaction incremental update with D1 direct write..."
+          # Calculate days between start and end date
+          START_DATE="${{ needs.determine-refresh-params.outputs.start_date }}"
+          END_DATE="${{ needs.determine-refresh-params.outputs.end_date }}"
+          DAYS=$((( $(date -d "$END_DATE" +%s) - $(date -d "$START_DATE" +%s) ) / 86400 + 1))
+          
+          python data_pipeline/league_transactions/update_transactions.py \
+            --days $DAYS \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} \
+            --use-d1 || echo "Transaction update failed with exit code $?"
       
       - name: Debug output
         if: always()
@@ -198,30 +194,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv
       
-      - name: Create test database
-        run: |
-          python scripts/create_test_database.py
-      
       - name: Run lineup incremental update
         env:
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
           YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
           YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
           YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
-          echo "Running lineup incremental update..."
-          python daily_lineups/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Lineup update failed with exit code $?"
-      
-      - name: Upload lineup database
-        if: needs.determine-refresh-params.outputs.environment == 'production'  
-        uses: actions/upload-artifact@v4
-        with:
-          name: lineup-database
-          path: database/league_analytics.db
-          retention-days: 1
+          echo "Running lineup incremental update with D1 direct write..."
+          # Calculate days between start and end date
+          START_DATE="${{ needs.determine-refresh-params.outputs.start_date }}"
+          END_DATE="${{ needs.determine-refresh-params.outputs.end_date }}"
+          DAYS=$((( $(date -d "$END_DATE" +%s) - $(date -d "$START_DATE" +%s) ) / 86400 + 1))
+          
+          python data_pipeline/daily_lineups/update_lineups.py \
+            --days $DAYS \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} \
+            --use-d1 || echo "Lineup update failed with exit code $?"
       
       - name: Debug output
         if: always()
@@ -230,125 +222,58 @@ jobs:
           echo "Working directory contents:"
           ls -la
 
-  refresh-stats:
-    name: Refresh Player Stats
-    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests python-dotenv
-      
-      - name: Create test database
-        run: |
-          python scripts/create_test_database.py pybaseball
-      
-      - name: Run stats incremental update
-        env:
-          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
-          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
-          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
-          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
-        run: |
-          echo "Running stats incremental update..."
-          python player_stats/incremental_update.py \
-            --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
-            --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Stats update failed with exit code $?"
-      
-      - name: Upload stats database
-        if: needs.determine-refresh-params.outputs.environment == 'production'
-        uses: actions/upload-artifact@v4
-        with:
-          name: stats-database
-          path: database/league_analytics.db
-          retention-days: 1
-      
-      - name: Debug output
-        if: always()
-        run: |
-          echo "Stats job completed"
-          echo "Working directory contents:"
-          ls -la
+# Player stats refresh disabled for initial D1 direct write implementation
+# Focus on transactions and lineups only per PRD requirements
+#  refresh-stats:
+#    name: Refresh Player Stats
+#    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
+#    runs-on: ubuntu-latest
+#    
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#      
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: ${{ env.PYTHON_VERSION }}
+#      
+#      - name: Cache Python dependencies
+#        uses: actions/cache@v4
+#        with:
+#          path: ~/.cache/pip
+#          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+#          restore-keys: |
+#            ${{ runner.os }}-pip-
+#      
+#      - name: Install dependencies
+#        run: |
+#          python -m pip install --upgrade pip
+#          pip install requests python-dotenv
+#      
+#      - name: Run stats incremental update
+#        env:
+#          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+#          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+#          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
+#          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
+#          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+#          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+#        run: |
+#          echo "Running stats incremental update with D1 direct write..."
+#          python data_pipeline/player_stats/update_stats.py \
+#            --days $DAYS \
+#            --environment ${{ needs.determine-refresh-params.outputs.environment }} \
+#            --use-d1 || echo "Stats update failed with exit code $?"
 
-  sync-to-cloudflare:
-    name: Sync to CloudFlare D1
-    needs: [determine-refresh-params, refresh-transactions, refresh-lineups, refresh-stats]
-    runs-on: ubuntu-latest
-    if: needs.determine-refresh-params.outputs.environment == 'production'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install Wrangler CLI
-        run: npm install -g wrangler
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests python-dotenv
-      
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '*-database'
-          path: artifacts/
-          merge-multiple: true
-      
-      - name: Merge databases and prepare for export
-        run: |
-          echo "Setting up database for CloudFlare export..."
-          python scripts/create_test_database.py
-          
-          # Copy the stats database (which includes all data from dependent jobs)
-          if [ -f "artifacts/league_analytics.db" ]; then
-            cp artifacts/league_analytics.db database/league_analytics.db
-            echo "✅ Using merged database from previous jobs"
-          else
-            echo "❌ No database found in artifacts"
-            ls -la artifacts/
-          fi
-      
-      - name: Export and sync to CloudFlare D1
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          echo "Syncing data to CloudFlare D1..."
-          python scripts/export_to_cloudflare.py
+# Sync to CloudFlare job removed - using direct D1 writes instead
+# This eliminates the two-step process (Local SQLite → Export → D1)
+# in favor of single-step GitHub Actions → D1 direct writes
 
   notify-completion:
-    name: Send Notifications
-    needs: [determine-refresh-params, refresh-transactions, refresh-lineups, refresh-stats, sync-to-cloudflare]
+    name: Send Notifications  
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
     runs-on: ubuntu-latest
     if: always()
     
@@ -357,13 +282,12 @@ jobs:
         id: status
         run: |
           if [ "${{ needs.refresh-transactions.result }}" == "success" ] && \
-             [ "${{ needs.refresh-lineups.result }}" == "success" ] && \
-             [ "${{ needs.refresh-stats.result }}" == "success" ]; then
+             [ "${{ needs.refresh-lineups.result }}" == "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=✅ All data refreshes completed successfully" >> $GITHUB_OUTPUT
+            echo "message=✅ D1 data refresh completed successfully (transactions and lineups)" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=❌ Some data refreshes failed" >> $GITHUB_OUTPUT
+            echo "message=❌ D1 data refresh failed" >> $GITHUB_OUTPUT
           fi
       
       - name: Send Slack notification

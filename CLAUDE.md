@@ -9,9 +9,11 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 **Current Implementation Status**: 
 - ✅ Production deployment on Cloudflare (goldenknightlounge.com)
 - ✅ Transaction data collection with comprehensive job logging
-- ✅ Daily lineup tracking and analysis
+- ✅ Daily lineup tracking and analysis  
 - ✅ React-based web UI with player spotlight features
-- ✅ Automated data refresh via scheduled workers
+- ✅ GitHub Actions scheduled data refresh with direct D1 writes
+- ✅ Dual database support (SQLite for development, D1 for production)
+- ✅ Automated foreign key dependency management
 - ⏳ PyBaseball MLB data integration (planned)
 - ⏳ Advanced predictive analytics (planned)
 
@@ -163,7 +165,8 @@ python league_transactions/backfill_transactions.py --season 2025
 python league_transactions/backfill_transactions.py --start 2025-03-01 --end 2025-09-30 --workers 4
 
 # Transaction collection - Incremental updates
-python league_transactions/update_transactions.py        # Default 7-day lookback
+python league_transactions/update_transactions.py        # Default 7-day lookback (SQLite)
+python league_transactions/update_transactions.py --use-d1     # Force Cloudflare D1
 python league_transactions/update_transactions.py --since-last
 python league_transactions/update_transactions.py --date 2025-08-04
 
@@ -171,8 +174,9 @@ python league_transactions/update_transactions.py --date 2025-08-04
 python daily_lineups/backfill_lineups.py --season 2025
 python daily_lineups/backfill_lineups.py --start 2025-03-01 --end 2025-09-30 --workers 4
 
-# Lineup collection - Incremental updates
-python daily_lineups/update_lineups.py        # Default 7-day lookback
+# Lineup collection - Incremental updates  
+python daily_lineups/update_lineups.py        # Default 7-day lookback (SQLite)
+python daily_lineups/update_lineups.py --use-d1     # Force Cloudflare D1
 python daily_lineups/update_lineups.py --since-last
 python daily_lineups/update_lineups.py --date 2025-08-04
 
@@ -181,6 +185,19 @@ python player_stats/incremental_update.py
 ```
 
 ### Database Operations
+
+#### Testing D1 Connection
+```bash
+# Test Cloudflare D1 connection and credentials
+python scripts/test_d1_connection.py
+
+# Required environment variables:
+export CLOUDFLARE_ACCOUNT_ID="your-account-id"
+export CLOUDFLARE_API_TOKEN="your-api-token"  
+export D1_DATABASE_ID="your-database-id"
+```
+
+#### Manual Sync (Development)
 ```bash
 # Sync local to production (handles foreign keys automatically)
 python scripts/sync_to_production.py
@@ -198,9 +215,24 @@ npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/transactions_*.sql 
 npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/lineups_*.sql --remote      # THIRD
 ```
 
+#### Automated Production Updates (GitHub Actions)
+```bash
+# GitHub Actions runs automatically 3x daily:
+# - 6:00 AM ET: 7-day lookback for corrections
+# - 1:00 PM ET: 3-day lookback for recent changes
+# - 10:00 PM ET: 3-day lookback for end-of-day sync
+
+# Manual workflow trigger:
+gh workflow run data-refresh.yml --input refresh_type=manual --input environment=production
+
+# Monitor workflow status:
+gh run list --workflow=data-refresh.yml --limit=5
+```
+
 **Foreign Key Constraints:**
 - All data tables reference job_log.job_id
-- Import job_logs FIRST to avoid FOREIGN KEY errors
+- GitHub Actions handle dependencies automatically with D1 direct writes
+- Manual imports: job_logs FIRST to avoid FOREIGN KEY errors
 - Use INSERT OR IGNORE for job_logs to handle duplicates
 - Use REPLACE for data tables to handle updates
 

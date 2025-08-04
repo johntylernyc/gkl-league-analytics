@@ -51,6 +51,13 @@ from data_pipeline.common.season_manager import get_league_key
 from data_pipeline.config.database_config import get_database_path, get_table_name
 from data_pipeline.league_transactions.data_quality_check import TransactionDataQualityChecker
 
+# Import D1 connection module
+try:
+    from data_pipeline.common.d1_connection import D1Connection, is_d1_available
+    D1_AVAILABLE = True
+except ImportError:
+    D1_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -67,21 +74,39 @@ MAX_LOOKBACK_DAYS = 30
 class TransactionUpdater:
     """Handles incremental transaction updates from Yahoo Fantasy Sports API."""
     
-    def __init__(self, environment='production'):
+    def __init__(self, environment='production', use_d1=None):
         """
         Initialize the updater.
         
         Args:
             environment: Database environment ('production' or 'test')
+            use_d1: Force D1 usage (True/False). If None, auto-detect from environment
         """
         self.environment = environment
         self.token_manager = YahooTokenManager()
         self.quality_checker = TransactionDataQualityChecker()
         
-        # Database setup
-        self.db_path = get_database_path(environment)
-        self.table_name = get_table_name('transactions', environment)
-        self._ensure_database()
+        # Determine database type
+        if use_d1 is None:
+            # Auto-detect: use D1 if credentials are available, otherwise SQLite
+            self.use_d1 = D1_AVAILABLE and is_d1_available()
+        else:
+            self.use_d1 = use_d1
+        
+        if self.use_d1:
+            if not D1_AVAILABLE:
+                raise RuntimeError("D1 connection module not available")
+            self.d1_conn = D1Connection()
+            self.db_path = None
+            self.table_name = 'transactions'
+            logger.info("Using Cloudflare D1 database")
+        else:
+            # SQLite setup
+            self.d1_conn = None
+            self.db_path = get_database_path(environment)
+            self.table_name = get_table_name('transactions', environment)
+            self._ensure_database()
+            logger.info(f"Using SQLite database: {self.db_path}")
         
         # Job tracking
         self.job_id = None
@@ -93,7 +118,11 @@ class TransactionUpdater:
         }
     
     def _ensure_database(self):
-        """Ensure database and tables exist."""
+        """Ensure database and tables exist (SQLite only)."""
+        if self.use_d1:
+            # D1 tables are assumed to exist in production
+            return
+            
         conn = sqlite3.connect(str(self.db_path))
         cursor = conn.cursor()
         
@@ -152,20 +181,31 @@ class TransactionUpdater:
         Returns:
             Latest transaction date or None if no transactions
         """
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-        
-        cursor.execute(f'''
-            SELECT MAX(date) FROM {self.table_name}
-            WHERE league_key = ?
-        ''', (league_key,))
-        
-        result = cursor.fetchone()
-        conn.close()
-        
-        if result and result[0]:
-            return datetime.strptime(result[0], '%Y-%m-%d')
-        return None
+        if self.use_d1:
+            result = self.d1_conn.execute(f'''
+                SELECT MAX(date) FROM {self.table_name}
+                WHERE league_key = ?
+            ''', [league_key])
+            
+            rows = result.get('results', [])
+            if rows and rows[0] and rows[0][0]:
+                return datetime.strptime(rows[0][0], '%Y-%m-%d')
+            return None
+        else:
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            
+            cursor.execute(f'''
+                SELECT MAX(date) FROM {self.table_name}
+                WHERE league_key = ?
+            ''', (league_key,))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result and result[0]:
+                return datetime.strptime(result[0], '%Y-%m-%d')
+            return None
     
     def start_job(self, job_type: str, date_range_start: str, date_range_end: str,
                   league_key: str, metadata: Optional[str] = None) -> str:
@@ -174,16 +214,29 @@ class TransactionUpdater:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         job_id = f"{job_type}_{self.environment}_{timestamp}_{uuid.uuid4().hex[:8]}"
         
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO job_log (job_id, job_type, environment, status,
-                                date_range_start, date_range_end, league_key, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (job_id, job_type, self.environment, 'running',
-              date_range_start, date_range_end, league_key, metadata))
-        conn.commit()
-        conn.close()
+        if self.use_d1:
+            # Use D1 connection method
+            self.d1_conn.ensure_job_exists(
+                job_id=job_id,
+                job_type=job_type,
+                environment=self.environment,
+                league_key=league_key,
+                date_range_start=date_range_start,
+                date_range_end=date_range_end,
+                metadata=metadata
+            )
+        else:
+            # Use SQLite
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO job_log (job_id, job_type, environment, status,
+                                    date_range_start, date_range_end, league_key, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (job_id, job_type, self.environment, 'running',
+                  date_range_start, date_range_end, league_key, metadata))
+            conn.commit()
+            conn.close()
         
         self.job_id = job_id
         logger.info(f"Started job: {job_id}")
@@ -195,33 +248,44 @@ class TransactionUpdater:
         if not self.job_id:
             return
         
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-        
-        update_parts = ['status = ?']
-        params = [status]
-        
-        if records_processed is not None:
-            update_parts.append('records_processed = ?')
-            params.append(records_processed)
-        
-        if records_inserted is not None:
-            update_parts.append('records_inserted = ?')
-            params.append(records_inserted)
-        
-        if error_message:
-            update_parts.append('error_message = ?')
-            params.append(error_message)
-        
-        if status in ['completed', 'failed']:
-            update_parts.append('end_time = CURRENT_TIMESTAMP')
-        
-        params.append(self.job_id)
-        
-        query = f"UPDATE job_log SET {', '.join(update_parts)} WHERE job_id = ?"
-        cursor.execute(query, params)
-        conn.commit()
-        conn.close()
+        if self.use_d1:
+            # Use D1 connection method
+            self.d1_conn.update_job_status(
+                job_id=self.job_id,
+                status=status,
+                records_processed=records_processed,
+                records_inserted=records_inserted,
+                error_message=error_message
+            )
+        else:
+            # Use SQLite
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            
+            update_parts = ['status = ?']
+            params = [status]
+            
+            if records_processed is not None:
+                update_parts.append('records_processed = ?')
+                params.append(records_processed)
+            
+            if records_inserted is not None:
+                update_parts.append('records_inserted = ?')
+                params.append(records_inserted)
+            
+            if error_message:
+                update_parts.append('error_message = ?')
+                params.append(error_message)
+            
+            if status in ['completed', 'failed']:
+                update_parts.append('end_time = CURRENT_TIMESTAMP')
+            
+            params.append(self.job_id)
+            
+            query = f"UPDATE job_log SET {', '.join(update_parts)} WHERE job_id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+            conn.close()
     
     def fetch_and_parse_transactions(self, league_key: str, date_str: str) -> List[Dict]:
         """
@@ -333,42 +397,51 @@ class TransactionUpdater:
             logger.warning(f"Found {validation_results['invalid']} invalid transactions")
             # Log details but continue with valid transactions
         
-        conn = sqlite3.connect(str(self.db_path))
-        cursor = conn.cursor()
-        
-        new_count = 0
-        duplicate_count = 0
-        
-        for trans in transactions:
-            try:
-                cursor.execute(f'''
-                    INSERT OR IGNORE INTO {self.table_name} (
-                        date, league_key, transaction_id, transaction_type,
-                        player_id, player_name, player_position, player_team,
-                        movement_type, destination_team_key, destination_team_name,
-                        source_team_key, source_team_name, job_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    trans['date'], trans['league_key'], trans['transaction_id'],
-                    trans['transaction_type'], trans['player_id'], trans['player_name'],
-                    trans['player_position'], trans['player_team'], trans['movement_type'],
-                    trans['destination_team_key'], trans['destination_team_name'],
-                    trans['source_team_key'], trans['source_team_name'], trans['job_id']
-                ))
-                
-                if cursor.rowcount > 0:
-                    new_count += 1
-                else:
-                    duplicate_count += 1
+        if self.use_d1:
+            # Use D1 batch insert method
+            inserted_count, error_count = self.d1_conn.insert_transactions(transactions, self.job_id)
+            
+            # D1 uses REPLACE so we can't distinguish duplicates, return as new
+            self.stats['errors'] += error_count
+            return inserted_count, 0
+        else:
+            # Use SQLite
+            conn = sqlite3.connect(str(self.db_path))
+            cursor = conn.cursor()
+            
+            new_count = 0
+            duplicate_count = 0
+            
+            for trans in transactions:
+                try:
+                    cursor.execute(f'''
+                        INSERT OR IGNORE INTO {self.table_name} (
+                            date, league_key, transaction_id, transaction_type,
+                            player_id, player_name, player_position, player_team,
+                            movement_type, destination_team_key, destination_team_name,
+                            source_team_key, source_team_name, job_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        trans['date'], trans['league_key'], trans['transaction_id'],
+                        trans['transaction_type'], trans['player_id'], trans['player_name'],
+                        trans['player_position'], trans['player_team'], trans['movement_type'],
+                        trans['destination_team_key'], trans['destination_team_name'],
+                        trans['source_team_key'], trans['source_team_name'], trans['job_id']
+                    ))
                     
-            except sqlite3.Error as e:
-                logger.error(f"Error inserting transaction: {e}")
-                self.stats['errors'] += 1
-        
-        conn.commit()
-        conn.close()
-        
-        return new_count, duplicate_count
+                    if cursor.rowcount > 0:
+                        new_count += 1
+                    else:
+                        duplicate_count += 1
+                        
+                except sqlite3.Error as e:
+                    logger.error(f"Error inserting transaction: {e}")
+                    self.stats['errors'] += 1
+            
+            conn.commit()
+            conn.close()
+            
+            return new_count, duplicate_count
     
     def update_recent(self, days_back: int = DEFAULT_LOOKBACK_DAYS,
                      league_key: Optional[str] = None) -> Dict:
@@ -559,6 +632,10 @@ def main():
                        help='Database environment (default: production)')
     parser.add_argument('--league-key', type=str,
                        help='Override league key')
+    parser.add_argument('--use-d1', action='store_true',
+                       help='Force use of Cloudflare D1 database (auto-detected if not specified)')
+    parser.add_argument('--use-sqlite', action='store_true',
+                       help='Force use of SQLite database (auto-detected if not specified)')
     
     # Other options
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -567,6 +644,18 @@ def main():
                        help='Suppress non-error output')
     
     args = parser.parse_args()
+    
+    # Validate database selection
+    if args.use_d1 and args.use_sqlite:
+        parser.error("Cannot specify both --use-d1 and --use-sqlite")
+    
+    # Determine database type
+    use_d1 = None
+    if args.use_d1:
+        use_d1 = True
+    elif args.use_sqlite:
+        use_d1 = False
+    # Otherwise auto-detect (use_d1 = None)
     
     # Set logging level
     if args.quiet:
@@ -577,7 +666,7 @@ def main():
         logging.getLogger().setLevel(logging.INFO)
     
     # Initialize updater
-    updater = TransactionUpdater(environment=args.environment)
+    updater = TransactionUpdater(environment=args.environment, use_d1=use_d1)
     
     try:
         # Execute based on arguments
