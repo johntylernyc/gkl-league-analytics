@@ -351,6 +351,31 @@ export default {
 }
 ```
 
+#### D1 Direct HTTP API Connection (GitHub Actions)
+```python
+from data_pipeline.common.d1_connection import D1Connection
+
+# Initialize with environment variables
+d1 = D1Connection()
+
+# Execute query with automatic retry and error handling
+result = d1.execute("SELECT COUNT(*) FROM job_log WHERE status = ?", ["completed"])
+
+# Batch operations (implemented as individual queries)
+statements = [
+    ("INSERT INTO job_log (job_id, job_type) VALUES (?, ?)", ["job1", "test"]),
+    ("INSERT INTO transactions (transaction_key, job_id) VALUES (?, ?)", ["tx1", "job1"])
+]
+results = d1.execute_batch(statements)
+```
+
+**D1 Connection Features:**
+- **Automatic Retry**: Exponential backoff for transient failures
+- **Response Parsing**: Handles D1 API result format (list → meta extraction)
+- **Batch Workaround**: Individual query execution when batch endpoint fails
+- **Foreign Key Management**: Ensures job_log entries exist before data insertion
+- **Debug Logging**: Comprehensive request/response logging
+
 ### Transaction Management
 
 #### ACID Compliance

@@ -165,9 +165,20 @@ def execute(self, query, params):
 ### Batch Operations
 D1 API limits are handled automatically:
 - Max 100 statements per batch
-- Max 1MB response size
+- Max 1MB response size  
 - 30-second query timeout
 - 1000 requests per minute rate limit
+
+**Current Implementation (Aug 2025)**: Individual query execution used as workaround for D1 batch endpoint 404 errors
+
+### D1 API Resilience (Aug 2025)
+Recent improvements for production stability:
+
+1. **Response Format Handling**: Correctly parse D1 API result structures (list → meta.changes extraction)
+2. **Batch Endpoint Workaround**: Execute queries individually when `/batch` endpoint returns 404 errors  
+3. **Debug Logging**: Enhanced URL and request logging for troubleshooting
+4. **Error Recovery**: Graceful degradation when API endpoints are unavailable
+5. **Retry Logic**: Exponential backoff for transient failures
 
 ### Monitoring
 - GitHub Actions execution logs

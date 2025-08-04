@@ -183,6 +183,8 @@ The system includes GitHub Actions scheduled workflows for automatic data refres
 - Comprehensive job logging and audit trails
 - Sub-2-minute execution times
 - 99%+ successful write rate
+- Resilient D1 API connection with automatic retry logic
+- Individual query execution (workaround for D1 batch endpoint issues)
 
 ## 🔐 Environment Configuration
 
@@ -353,9 +355,11 @@ npx wrangler pages deploy build --project-name gkl-fantasy
 ✅ Player spotlight features  
 ✅ Manager analytics  
 ✅ Production deployment on Cloudflare  
-✅ Automated data refresh  
+✅ Automated data refresh with GitHub Actions
 ✅ Mobile-responsive interface  
-✅ Data quality validation for all pipelines  
+✅ Data quality validation for all pipelines
+✅ Direct D1 database integration (Aug 2025)
+✅ Resilient API connection handling (Aug 2025)  
 
 ### Roadmap
 🔄 MLB statistics integration (PyBaseball)  

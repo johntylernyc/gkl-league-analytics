@@ -234,6 +234,15 @@ jobs:
       - Verify deployment
 ```
 
+**D1 Direct Write Implementation:**
+GitHub Actions workflows include automated data refresh with direct D1 database writes:
+
+- **Resilient Connection**: Automatic retry logic for API failures
+- **Individual Query Execution**: Workaround for D1 batch endpoint issues  
+- **Response Format Handling**: Proper parsing of D1 API result structures
+- **Error Recovery**: Graceful handling of individual query failures
+- **Debug Capabilities**: Comprehensive logging for troubleshooting
+
 ### 4. Deployment Verification
 
 **Health Checks:**

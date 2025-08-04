@@ -538,6 +538,17 @@ python auth/initialize_tokens.py
 - Use data retention policies
 - Archive old seasons
 
+#### D1 API Connection Issues
+**Problem**: "Route not found" or 404 errors from D1 API
+**Solution**: 
+1. Verify environment variables: `CLOUDFLARE_ACCOUNT_ID`, `D1_DATABASE_ID`, `CLOUDFLARE_API_TOKEN`
+2. Check API token has D1 permissions
+3. Current implementation uses individual queries (not batch) as workaround
+4. Enable debug logging with `logger.setLevel(logging.DEBUG)` to see exact URLs
+
+**Problem**: "List object has no attribute 'get'" errors
+**Solution**: Fixed in current implementation - D1 API response format handled correctly
+
 ### API Rate Limiting
 - Yahoo: 1 request/second
 - Implement exponential backoff
