@@ -3,6 +3,7 @@ Export updated data from local SQLite to CloudFlare D1.
 This script runs after GitHub Actions to sync data to the production website.
 """
 
+import os
 import sqlite3
 import json
 import subprocess
@@ -194,15 +195,34 @@ def deploy_to_cloudflare():
         print("ℹ️  No SQL files to deploy")
         return True
     
+    # Get environment variables and ensure CloudFlare credentials are set
+    env = os.environ.copy()
+    
+    # Debug: Check if CloudFlare credentials are available
+    if 'CLOUDFLARE_API_TOKEN' in env:
+        print(f"✅ CloudFlare API token found (length: {len(env['CLOUDFLARE_API_TOKEN'])})")
+    else:
+        print("⚠️  CloudFlare API token not found in environment")
+    
+    if 'CLOUDFLARE_ACCOUNT_ID' in env:
+        print(f"✅ CloudFlare account ID found: {env['CLOUDFLARE_ACCOUNT_ID'][:8]}...")
+    else:
+        print("⚠️  CloudFlare account ID not found in environment")
+    
+    # Use the database ID directly instead of the name for reliability
+    database_id = 'f541fa7b-9356-4a96-a24e-3b7cd06e9cfa'
+    
     for sql_file in sql_files:
         print(f"📤 Executing: {sql_file.name}")
         
         try:
-            # Execute SQL file against D1 database
+            # Execute SQL file against D1 database using database ID
             result = subprocess.run([
-                'wrangler', 'd1', 'execute', 'gkl-fantasy', 
+                'wrangler', 'd1', 'execute', database_id, 
                 '--file', str(sql_file)
-            ], capture_output=True, text=True, cwd=Path(__file__).parent.parent / 'cloudflare-deployment')
+            ], capture_output=True, text=True, 
+            cwd=Path(__file__).parent.parent / 'cloudflare-deployment',
+            env=env)
             
             if result.returncode == 0:
                 print(f"✅ {sql_file.name} executed successfully")
