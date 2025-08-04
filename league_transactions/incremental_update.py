@@ -163,6 +163,41 @@ class TransactionIncrementalUpdater:
         
         return transactions
     
+    def fetch_transactions_for_date(self, date: str) -> List[Dict]:
+        """
+        Fetch transactions for a specific date from Yahoo API.
+        """
+        # Import the fetch function from backfill script
+        from league_transactions.backfill_transactions_optimized import fetch_transactions_for_date
+        
+        try:
+            # Use token manager to get access token and fetch data
+            from auth.token_manager import YahooTokenManager
+            token_manager = YahooTokenManager()
+            
+            date_str, transactions = fetch_transactions_for_date(
+                token_manager, self.league_key, date, self.job_id
+            )
+            
+            # Convert to expected format
+            formatted_transactions = []
+            for txn in transactions:
+                formatted_transactions.append({
+                    'transaction_id': txn.get('transaction_id'),
+                    'date': txn.get('transaction_date', date),
+                    'type': txn.get('transaction_type'),
+                    'team_key': txn.get('team_key'),
+                    'player_id': txn.get('player_id'),
+                    'player_name': txn.get('player_name'),
+                    'timestamp': txn.get('timestamp', f"{date}T12:00:00")
+                })
+            
+            return formatted_transactions
+            
+        except Exception as e:
+            print(f"  Error fetching transactions for {date}: {e}")
+            return []
+    
     def simulate_transactions_for_date(self, date: str) -> List[Dict]:
         """
         Simulate fetching transactions for a date.
@@ -328,8 +363,8 @@ class TransactionIncrementalUpdater:
             print(f"\nProcessing transactions for {date} (archive data, skipping)...")
             return 0
         
-        # Fetch/simulate current transactions
-        current_transactions = self.simulate_transactions_for_date(date)
+        # Fetch current transactions from Yahoo API
+        current_transactions = self.fetch_transactions_for_date(date)
         
         if not current_transactions:
             print(f"  No transactions found for {date}")

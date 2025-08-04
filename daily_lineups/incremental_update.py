@@ -411,9 +411,8 @@ class DailyLineupIncrementalUpdater:
         """Process lineups for a specific date."""
         print(f"\nProcessing lineups for {date}...")
         
-        # For now, use existing data from database for testing
-        # In production, this would fetch from Yahoo API
-        lineups = self.get_existing_lineups_from_db(date)
+        # Fetch current lineups from Yahoo API
+        lineups = self.fetch_lineups_from_yahoo(date)
         
         if not lineups:
             print(f"  No lineups found for {date}")
