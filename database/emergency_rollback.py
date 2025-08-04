@@ -58,7 +58,7 @@ def rollback_all_features():
     
     # Import database configuration
     try:
-        from config.database_config import get_database_path, get_environment
+        from data_pipeline.config.database_config import get_database_path, get_environment
         
         # Get database files
         db_files = []
@@ -212,7 +212,7 @@ def verify_rollback():
     
     # Check database settings
     try:
-        from config.database_config import get_database_path, get_environment
+        from data_pipeline.config.database_config import get_database_path, get_environment
         
         for env in ['test', 'production']:
             try:

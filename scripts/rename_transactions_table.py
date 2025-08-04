@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from config.database_config import DATABASE_DIR, PRODUCTION_DB
+from data_pipeline.config.database_config import DATABASE_DIR, PRODUCTION_DB
 
 
 def rename_transactions_table():

@@ -5,9 +5,9 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from common.season_manager import SeasonManager
+from data_pipeline.common.season_manager import SeasonManager
 from auth.config import LEAGUE_KEYS, SEASON_DATES
-from daily_lineups.config import get_season_dates, get_league_key
+from data_pipeline.daily_lineups.config import get_season_dates, get_league_key
 from datetime import datetime
 
 
@@ -75,8 +75,8 @@ def test_backfill_import():
     """Test that backfill script can import the configs."""
     print("Testing backfill script imports...")
     try:
-        from league_transactions.backfill_transactions_optimized import LEAGUE_KEYS as BF_KEYS
-        from league_transactions.backfill_transactions_optimized import SEASON_DATES as BF_DATES
+        from data_pipeline.league_transactions.backfill_transactions_optimized import LEAGUE_KEYS as BF_KEYS
+        from data_pipeline.league_transactions.backfill_transactions_optimized import SEASON_DATES as BF_DATES
         print(f"Backfill LEAGUE_KEYS: {BF_KEYS}")
         print(f"Backfill SEASON_DATES: {BF_DATES}")
         print("[SUCCESS] Backfill script imports successful")

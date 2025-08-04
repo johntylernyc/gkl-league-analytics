@@ -15,7 +15,7 @@ def export_recent_data():
     """Export recent data changes to SQL files for CloudFlare import."""
     
     db_path = Path(__file__).parent.parent / 'database' / 'league_analytics.db'
-    export_dir = Path(__file__).parent.parent / 'cloudflare-deployment' / 'sql' / 'incremental'
+    export_dir = Path(__file__).parent.parent / 'cloudflare-production' / 'sql' / 'incremental'
     export_dir.mkdir(exist_ok=True)
     
     if not db_path.exists():
@@ -312,14 +312,14 @@ VALUES ({values});""")
 def deploy_to_cloudflare():
     """Deploy the exported data to CloudFlare D1."""
     
-    export_dir = Path(__file__).parent.parent / 'cloudflare-deployment' / 'sql' / 'incremental'
+    export_dir = Path(__file__).parent.parent / 'cloudflare-production' / 'sql' / 'incremental'
     
     print("🚀 Deploying to CloudFlare D1...")
     
     # Check if wrangler is available
     try:
         result = subprocess.run(['wrangler', '--version'], 
-                              capture_output=True, text=True, cwd=Path(__file__).parent.parent / 'cloudflare-deployment')
+                              capture_output=True, text=True, cwd=Path(__file__).parent.parent / 'cloudflare-production')
         print(f"📦 Wrangler version: {result.stdout.strip()}")
     except FileNotFoundError:
         print("❌ Wrangler CLI not found. Install with: npm install -g wrangler")
@@ -370,7 +370,7 @@ def deploy_to_cloudflare():
                 wrangler_cmd,
                 capture_output=True, 
                 text=True, 
-                cwd=Path(__file__).parent.parent / 'cloudflare-deployment',
+                cwd=Path(__file__).parent.parent / 'cloudflare-production',
                 env=env)
             
             if result.returncode == 0:

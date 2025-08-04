@@ -19,14 +19,14 @@ except ImportError:
     pass
 
 # Import centralized league configuration
-from metadata.league_keys import LEAGUE_KEYS, SEASON_DATES
-from common.season_manager import get_league_key, get_current_season
+from data_pipeline.metadata.league_keys import LEAGUE_KEYS, SEASON_DATES
+from data_pipeline.common.season_manager import get_league_key, get_current_season
 
 # ---- OAUTH CONFIGURATION ----
 # Load from environment variables for security
 CLIENT_ID = os.getenv('YAHOO_CLIENT_ID')
 CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET')
-REDIRECT_URI = os.getenv('YAHOO_REDIRECT_URI', 'https://createdbydata.com')
+REDIRECT_URI = os.getenv('YAHOO_REDIRECT_URI', 'https://goldenknightlounge.com')
 AUTHORIZATION_CODE = os.getenv('YAHOO_AUTHORIZATION_CODE')
 REFRESH_TOKEN = os.getenv('YAHOO_REFRESH_TOKEN')
 

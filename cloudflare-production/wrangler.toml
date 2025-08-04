@@ -1,0 +1,63 @@
+name = "gkl-fantasy-api"
+main = "src/index-with-db.js"
+compatibility_date = "2024-01-02"
+compatibility_flags = ["nodejs_compat"]
+
+# Account ID will be added after wrangler login
+# account_id = "YOUR_ACCOUNT_ID"
+
+# Development environment
+[env.development]
+name = "gkl-fantasy-api-dev"
+vars = { ENVIRONMENT = "development" }
+
+# Production environment
+[env.production]
+name = "gkl-fantasy-api-prod"
+vars = { ENVIRONMENT = "production" }
+
+# D1 Database binding for production
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "gkl-fantasy"
+database_id = "f541fa7b-9356-4a96-a24e-3b7cd06e9cfa"
+
+# KV namespace for caching for production
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "27f3df3708b84a6f8d57a0753057ef9f"
+
+# Custom domain routing
+routes = [
+  { pattern = "api.goldenknightlounge.com/*", zone_name = "goldenknightlounge.com" }
+]
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "gkl-fantasy"
+database_id = "f541fa7b-9356-4a96-a24e-3b7cd06e9cfa"
+
+# KV namespace for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "27f3df3708b84a6f8d57a0753057ef9f"
+
+# R2 bucket for file storage (optional, for backups)
+# [[r2_buckets]]
+# binding = "BACKUP_BUCKET"
+# bucket_name = "gkl-fantasy-backups"
+
+# Durable Objects (optional, for real-time features)
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER"
+# class_name = "RateLimiter"
+# script_name = "rate-limiter"
+
+# Build configuration
+[build]
+command = ""
+
+# Define cron triggers for scheduled tasks (commented out due to limit)
+# [triggers]
+# crons = ["0 2 * * *", "0 14 * * *"]  # 2 AM and 2 PM daily

@@ -1,0 +1,5 @@
+# Large SQL files (>100MB)
+*.sql
+
+# Keep structure documentation
+!README.md
