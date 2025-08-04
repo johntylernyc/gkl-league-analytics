@@ -39,7 +39,10 @@ class YahooTokenManager:
         # In GitHub Actions, use refresh token from environment
         refresh_token = os.getenv('YAHOO_REFRESH_TOKEN')
         if refresh_token:
-            print(f"Using refresh token from environment variable (GitHub Actions)")
+            print(f"[DEBUG] Using refresh token from environment variable (GitHub Actions)")
+            print(f"[DEBUG] Refresh token length: {len(refresh_token) if refresh_token else 0}")
+            print(f"[DEBUG] Client ID: {str(self.client_id)[:10]}..." if self.client_id else "[DEBUG] Client ID: None")
+            print(f"[DEBUG] Client Secret: {str(self.client_secret)[:10]}..." if self.client_secret else "[DEBUG] Client Secret: None")
             return {
                 'refresh_token': refresh_token,
                 'access_token': None,
@@ -95,6 +98,9 @@ class YahooTokenManager:
         if not self.tokens.get('refresh_token'):
             raise ValueError("No refresh token available")
         
+        print(f"[DEBUG] Refreshing access token...")
+        print(f"[DEBUG] Token URL: {self.token_url}")
+        
         credentials = f"{self.client_id}:{self.client_secret}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
         
@@ -109,12 +115,16 @@ class YahooTokenManager:
             'redirect_uri': self.redirect_uri
         }
         
+        print(f"[DEBUG] Making token refresh request...")
         response = requests.post(self.token_url, headers=headers, data=data)
         
+        print(f"[DEBUG] Token refresh response status: {response.status_code}")
         if response.status_code != 200:
+            print(f"[DEBUG] Token refresh failed: {response.text}")
             raise ValueError(f"Failed to refresh token: {response.text}")
         
         new_tokens = response.json()
+        print(f"[DEBUG] Token refresh successful")
         
         # Update stored tokens
         self.tokens['access_token'] = new_tokens['access_token']

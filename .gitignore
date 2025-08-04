@@ -38,6 +38,7 @@ env/
 
 # OAuth Credentials and Tokens
 auth/tokens.json
+tokens.json
 auth/refresh_token.txt
 auth/access_token.txt
 auth/config_local.py

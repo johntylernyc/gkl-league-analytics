@@ -930,6 +930,48 @@ export default {
         }
       }
 
+      // Debug endpoint for player usage
+      const debugUsageMatch = pathname.match(/^\/debug\/player-usage\/(\d+)$/);
+      if (debugUsageMatch) {
+        const playerId = debugUsageMatch[1];
+        
+        try {
+          const usageByTeam = await env.DB.prepare(`
+            SELECT 
+              team_name,
+              COUNT(*) as total_days,
+              SUM(CASE WHEN selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA') THEN 1 ELSE 0 END) as started_days,
+              SUM(CASE WHEN selected_position = 'BN' THEN 1 ELSE 0 END) as benched_days,
+              SUM(CASE WHEN selected_position = 'NA' THEN 1 ELSE 0 END) as minor_league_days,
+              SUM(CASE WHEN selected_position IN ('IL', 'IL10', 'IL60') THEN 1 ELSE 0 END) as injured_days
+            FROM daily_lineups
+            WHERE player_id = ?
+            GROUP BY team_name
+          `).bind(playerId).all();
+          
+          const playerInfo = await env.DB.prepare(`
+            SELECT player_name, COUNT(*) as total_records
+            FROM daily_lineups
+            WHERE player_id = ?
+            GROUP BY player_name
+          `).bind(playerId).first();
+          
+          return new Response(JSON.stringify({
+            player_id: playerId,
+            player_name: playerInfo?.player_name,
+            total_records: playerInfo?.total_records,
+            usage_by_team: usageByTeam.results
+          }, null, 2), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+      }
+      
       // Player performance breakdown endpoint
       const performanceMatch = pathname.match(/^\/players\/(\d+)\/performance-breakdown$/);
       if (performanceMatch) {
@@ -1001,6 +1043,17 @@ export default {
           // Get stats aggregated by roster situation and team
           const getStatsForSituation = async (situationFilter, teamFilter = '') => {
             try {
+              // First try to find the player in daily_gkl_player_stats using player name
+              const playerNameResult = await env.DB.prepare(`
+                SELECT player_name FROM daily_lineups WHERE player_id = ? LIMIT 1
+              `).bind(playerId).first();
+              
+              if (!playerNameResult?.player_name) {
+                console.log('Could not find player name for ID:', playerId);
+                return {};
+              }
+              
+              // Try to match by player name in the stats table
               const statsResult = await env.DB.prepare(`
                 SELECT 
                   COALESCE(SUM(s.batting_runs), 0) as runs,
@@ -1025,9 +1078,14 @@ export default {
                   COALESCE(SUM(s.pitching_walks_allowed), 0) as pitching_walks,
                   COALESCE(SUM(s.pitching_quality_starts), 0) as quality_starts
                 FROM daily_gkl_player_stats s
-                JOIN daily_lineups l ON s.yahoo_player_id = l.player_id AND s.date = l.date
-                WHERE s.yahoo_player_id = ? ${situationFilter} ${teamFilter}
-              `).bind(playerId).first();
+                WHERE s.player_name = ?
+                  AND EXISTS (
+                    SELECT 1 FROM daily_lineups l 
+                    WHERE l.player_id = ? 
+                    AND l.date = s.date
+                    ${situationFilter} ${teamFilter}
+                  )
+              `).bind(playerNameResult.player_name, playerId).first();
               return statsResult || {};
             } catch (error) {
               console.log('Stats query failed for situation:', situationFilter, teamFilter, error);
@@ -1035,24 +1093,22 @@ export default {
             }
           };
 
-          // Get stats for current team only
-          const currentTeamStartedStats = await getStatsForSituation(
+          // Get aggregated stats for all teams (simpler approach for now)
+          const startedStats = await getStatsForSituation(
             "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
-            currentTeam ? `AND l.team_name = '${currentTeam.replace(/'/g, "''")}'` : ''
+            ''
           );
-          const currentTeamBenchedStats = await getStatsForSituation(
+          const benchedStats = await getStatsForSituation(
             "AND l.selected_position = 'BN'", 
-            currentTeam ? `AND l.team_name = '${currentTeam.replace(/'/g, "''")}'` : ''
+            ''
           );
-          
-          // Get stats for other teams (aggregate)
-          const otherTeamsStartedStats = await getStatsForSituation(
-            "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
-            currentTeam ? `AND l.team_name != '${currentTeam.replace(/'/g, "''")}'` : ''
+          const minorLeagueStats = await getStatsForSituation(
+            "AND l.selected_position = 'NA'", 
+            ''
           );
-          const otherTeamsBenchedStats = await getStatsForSituation(
-            "AND l.selected_position = 'BN'", 
-            currentTeam ? `AND l.team_name != '${currentTeam.replace(/'/g, "''")}'` : ''
+          const injuredListStats = await getStatsForSituation(
+            "AND l.selected_position IN ('IL', 'IL10', 'IL60')", 
+            ''
           );
           
           // Get stats for each individual other team (for expandable view)
@@ -1088,12 +1144,21 @@ export default {
           const calculateWHIP = (hits, walks, inningsPitched) => inningsPitched > 0 ? (hits + walks) / inningsPitched : 0;
           const calculateKBB = (strikeouts, walks) => walks > 0 ? strikeouts / walks : strikeouts > 0 ? strikeouts : 0;
 
+          // Calculate total usage across all teams
+          let totalUsage = { started_days: 0, benched_days: 0, minor_league_days: 0, injured_days: 0 };
+          for (const team of usageByTeam.results || []) {
+            totalUsage.started_days += team.started_days || 0;
+            totalUsage.benched_days += team.benched_days || 0;
+            totalUsage.minor_league_days += team.minor_league_days || 0;
+            totalUsage.injured_days += team.injured_days || 0;
+          }
+          
           // Create performance breakdown response using aggregated stats
           const breakdown = {
             player_type: isPitcher ? 'pitcher' : 'batter',
             usage_breakdown: {
               started: {
-                days: usageByTeam?.started_days || 0,
+                days: totalUsage.started_days || 0,
                 stats: {
                   batting: {
                     R: startedStats?.runs || 0,
@@ -1120,7 +1185,7 @@ export default {
                 }
               },
               benched: {
-                days: usageByTeam?.benched_days || 0,
+                days: totalUsage.benched_days || 0,
                 stats: {
                   batting: {
                     R: benchedStats?.runs || 0,
@@ -1147,7 +1212,7 @@ export default {
                 }
               },
               minor_leagues: {
-                days: usageByTeam?.minor_league_days || 0,
+                days: totalUsage.minor_league_days || 0,
                 stats: {
                   batting: {
                     R: minorLeagueStats?.runs || 0,
@@ -1174,7 +1239,7 @@ export default {
                 }
               },
               injured_list: {
-                days: usageByTeam?.injured_days || 0,
+                days: totalUsage.injured_days || 0,
                 stats: {
                   batting: {
                     R: injuredListStats?.runs || 0,

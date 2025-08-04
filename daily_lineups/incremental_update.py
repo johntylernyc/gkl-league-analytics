@@ -19,7 +19,7 @@ sys.path.append(str(parent_dir))
 sys.path.append(str(parent_dir / 'scripts'))
 from change_tracking import ChangeTracker, RefreshStrategy
 
-from auth.config import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, SEASON_DATES
+from auth.config import SEASON_DATES
 
 # Constants
 FORCE_REFRESH_DAYS = 3  # Always refresh recent data
@@ -41,7 +41,12 @@ class DailyLineupIncrementalUpdater:
         self.conn = sqlite3.connect(str(DB_PATH))
         self.tracker = ChangeTracker()
         self.strategy = RefreshStrategy()
-        self.oauth = self._initialize_oauth()
+        # Use standardized token manager
+        print("[DEBUG LINEUP] Attempting to import YahooTokenManager...")
+        from auth.token_manager import YahooTokenManager
+        print("[DEBUG LINEUP] Import successful, initializing token manager...")
+        self.token_manager = YahooTokenManager()
+        print("[DEBUG LINEUP] Token manager initialized successfully")
         self.job_id = None
         self.stats = {
             'new': 0,
@@ -51,38 +56,6 @@ class DailyLineupIncrementalUpdater:
             'errors': 0
         }
         
-    def _initialize_oauth(self):
-        """Initialize Yahoo OAuth session."""
-        # Simple OAuth placeholder - in production would use proper OAuth library
-        class SimpleOAuth:
-            def __init__(self):
-                self.access_token = None
-                self.refresh_token = None
-                self.token_expiry = datetime.now()
-                
-            def is_token_expired(self):
-                return datetime.now() >= self.token_expiry
-                
-            def refresh_access_token(self):
-                # Placeholder for token refresh
-                pass
-        
-        oauth = SimpleOAuth()
-        
-        # Load tokens if they exist
-        token_file = Path(__file__).parent.parent / 'auth' / 'tokens.json'
-        if token_file.exists():
-            with open(token_file, 'r') as f:
-                tokens = json.load(f)
-                oauth.access_token = tokens.get('access_token')
-                oauth.refresh_token = tokens.get('refresh_token')
-                if tokens.get('token_expiry'):
-                    try:
-                        oauth.token_expiry = datetime.fromisoformat(tokens.get('token_expiry'))
-                    except:
-                        oauth.token_expiry = datetime.now()
-        
-        return oauth
     
     def start_job_log(self, date_range_start: str, date_range_end: str) -> str:
         """Start a job log entry."""
@@ -162,50 +135,125 @@ class DailyLineupIncrementalUpdater:
         Returns:
             List of lineup dictionaries
         """
-        # Format date for Yahoo API (YYYY-MM-DD)
-        url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{LEAGUE_KEY}/transactions;date={date}"
+        import requests
+        import xml.etree.ElementTree as ET
+        import re
         
-        headers = {
-            'Authorization': f'Bearer {self.oauth.access_token}',
-            'Accept': 'application/json'
-        }
+        # Get all team keys from our league
+        team_keys = [
+            '458.l.6966.t.1', '458.l.6966.t.10', '458.l.6966.t.11', '458.l.6966.t.12',
+            '458.l.6966.t.13', '458.l.6966.t.14', '458.l.6966.t.15', '458.l.6966.t.16', '458.l.6966.t.17'
+        ]
         
-        try:
-            import requests
-            response = requests.get(url, headers=headers)
-            
-            if response.status_code == 401:
-                # Token might have expired, refresh and retry
-                self.oauth.refresh_access_token()
-                headers['Authorization'] = f'Bearer {self.oauth.access_token}'
-                response = requests.get(url, headers=headers)
-            
-            if response.status_code == 200:
-                # Parse the response and extract lineups
-                # Note: This is a simplified version - actual parsing depends on Yahoo's response format
-                data = response.json()
-                return self.parse_yahoo_lineups(data, date)
-            else:
-                print(f"[WARN] Failed to fetch lineups for {date}: Status {response.status_code}")
-                return []
+        all_lineups = []
+        
+        for team_key in team_keys:
+            try:
+                # Yahoo API roster endpoint for specific date
+                url = f"https://fantasysports.yahooapis.com/fantasy/v2/team/{team_key}/roster;date={date}"
                 
-        except Exception as e:
-            print(f"[ERROR] Error fetching lineups for {date}: {e}")
-            self.stats['errors'] += 1
-            return []
+                print(f"[DEBUG LINEUP] Getting access token for team {team_key}...")
+                access_token = self.token_manager.get_access_token()
+                print(f"[DEBUG LINEUP] Access token obtained (length: {len(access_token) if access_token else 0})")
+                
+                headers = {
+                    'Authorization': f'Bearer {access_token}',
+                    'Accept': 'application/xml'
+                }
+                
+                print(f"[DEBUG LINEUP] Making API request to: {url}")
+                response = requests.get(url, headers=headers)
+                print(f"[DEBUG LINEUP] API response status: {response.status_code}")
+                
+                if response.status_code == 401:
+                    print(f"[DEBUG LINEUP] Got 401, attempting token refresh...")
+                    # Token might have expired, force refresh and retry
+                    self.token_manager.tokens['access_token'] = None  # Force refresh
+                    new_token = self.token_manager.get_access_token()
+                    print(f"[DEBUG LINEUP] New token obtained (length: {len(new_token) if new_token else 0})")
+                    headers['Authorization'] = f'Bearer {new_token}'
+                    response = requests.get(url, headers=headers)
+                    print(f"[DEBUG LINEUP] Retry response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    # Parse XML response
+                    xml_text = re.sub(' xmlns="[^"]+"', '', response.text, count=1)
+                    root = ET.fromstring(xml_text)
+                    
+                    # Extract team name
+                    team_name = root.findtext(".//team/name", "Unknown Team")
+                    
+                    # Parse roster players
+                    for player in root.findall(".//player"):
+                        player_id = player.findtext("player_id")
+                        name_full = player.findtext("name/full", "Unknown Player")
+                        
+                        # Get selected position
+                        selected_position = player.findtext("selected_position/position", "BN")
+                        position_type = "B" if selected_position == "BN" else "S"  # Bench or Starter
+                        
+                        # Get eligible positions
+                        eligible_positions = []
+                        for pos in player.findall(".//eligible_positions/position"):
+                            eligible_positions.append(pos.text)
+                        eligible_positions_str = ",".join(eligible_positions)
+                        
+                        # Get player status (if available)
+                        player_status = player.findtext("status", "")
+                        
+                        # Get player team (MLB team)
+                        player_team = player.findtext("editorial_team_abbr", "")
+                        
+                        lineup_data = {
+                            'date': date,
+                            'team_key': team_key,
+                            'team_name': team_name,
+                            'player_id': player_id,
+                            'player_name': name_full,
+                            'selected_position': selected_position,
+                            'position_type': position_type,
+                            'player_status': player_status,
+                            'eligible_positions': eligible_positions_str,
+                            'player_team': player_team
+                        }
+                        
+                        all_lineups.append(lineup_data)
+                        
+                elif response.status_code == 404:
+                    # No roster data for this date/team - this is normal
+                    continue
+                else:
+                    print(f"[WARN] Failed to fetch lineup for team {team_key} on {date}: Status {response.status_code}")
+                    
+            except Exception as e:
+                print(f"[ERROR] Error fetching lineup for team {team_key} on {date}: {e}")
+                self.stats['errors'] += 1
+                continue
+        
+        # Group lineups by team
+        lineups_by_team = {}
+        for lineup_data in all_lineups:
+            team_key = lineup_data['team_key']
+            if team_key not in lineups_by_team:
+                lineups_by_team[team_key] = {
+                    'team_key': team_key,
+                    'team_name': lineup_data['team_name'],
+                    'date': date,
+                    'players': []
+                }
+            
+            lineups_by_team[team_key]['players'].append({
+                'player_id': lineup_data['player_id'],
+                'player_name': lineup_data['player_name'],
+                'selected_position': lineup_data['selected_position'],
+                'position_type': lineup_data['position_type'],
+                'player_status': lineup_data['player_status'],
+                'eligible_positions': lineup_data['eligible_positions'],
+                'player_team': lineup_data['player_team']
+            })
+        
+        return list(lineups_by_team.values())
     
-    def parse_yahoo_lineups(self, data: Dict, date: str) -> List[Dict[str, Any]]:
-        """
-        Parse Yahoo API response to extract lineup data.
-        
-        Note: This is a placeholder - actual implementation depends on Yahoo's response format
-        """
-        lineups = []
-        
-        # This would need to be implemented based on actual Yahoo API response structure
-        # For now, returning empty list to avoid errors
-        
-        return lineups
     
     def get_existing_lineups_from_db(self, date: str) -> List[Dict[str, Any]]:
         """Get existing lineups from database for comparison."""

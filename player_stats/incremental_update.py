@@ -22,6 +22,7 @@ from change_tracking import ChangeTracker, RefreshStrategy
 # Constants
 STAT_CORRECTION_WINDOW = 7  # Check for corrections within 7 days
 DB_PATH = Path(__file__).parent.parent / 'database' / 'league_analytics.db'
+LEAGUE_KEY = 'mlb.l.6966'  # 2025 season
 
 
 class PlayerStatsIncrementalUpdater:
@@ -38,6 +39,12 @@ class PlayerStatsIncrementalUpdater:
         self.conn = sqlite3.connect(str(DB_PATH))
         self.tracker = ChangeTracker()
         self.strategy = RefreshStrategy()
+        # Use standardized token manager
+        print("[DEBUG STATS] Attempting to import YahooTokenManager...")
+        from auth.token_manager import YahooTokenManager
+        print("[DEBUG STATS] Import successful, initializing token manager...")
+        self.token_manager = YahooTokenManager()
+        print("[DEBUG STATS] Token manager initialized successfully")
         self.job_id = None
         self.stats = {
             'new': 0,
@@ -47,6 +54,7 @@ class PlayerStatsIncrementalUpdater:
             'checked': 0,
             'errors': 0
         }
+    
         
     def start_job_log(self, date_range_start: str, date_range_end: str) -> str:
         """Start a job log entry."""
@@ -120,43 +128,141 @@ class PlayerStatsIncrementalUpdater:
     
     def simulate_stats_for_date(self, date: str) -> List[Dict]:
         """
-        Simulate fetching stats for a date.
-        In production, this would fetch from MLB API or Yahoo.
+        Fetch player stats for a specific date from Yahoo API.
+        
+        Args:
+            date: Date in YYYY-MM-DD format
+            
+        Returns:
+            List of player stats dictionaries
         """
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            SELECT yahoo_player_id, batting_hits, batting_runs, 
-                   batting_rbis, batting_home_runs, batting_stolen_bases
-            FROM daily_gkl_player_stats
-            WHERE date = ?
-              AND has_batting_data = 1
-            LIMIT 10
-        """, (date,))
+        import requests
+        import xml.etree.ElementTree as ET
+        import re
+        from datetime import datetime
         
-        stats_list = []
-        for row in cursor.fetchall():
-            player_id, h, r, rbi, hr, sb = row
-            if player_id:  # Skip NULL player IDs
-                stats_list.append({
-                    'player_id': player_id,
-                    'date': date,
-                    'stats': {
-                        'h': h or 0,
-                        'r': r or 0,
-                        'rbi': rbi or 0,
-                        'hr': hr or 0,
-                        'sb': sb or 0
-                    }
-                })
+        # Convert date to determine week number for MLB season
+        # For simplicity, we'll fetch all players from the league and their stats
         
-        # Simulate a stat correction for testing (10% chance)
-        import random
-        if stats_list and random.random() < 0.1:
-            # Simulate a hit correction
-            stats_list[0]['stats']['h'] += 1
-            print(f"  [SIMULATED] Stat correction for player {stats_list[0]['player_id']}")
-        
-        return stats_list
+        try:
+            # Get league players and their stats for the date
+            url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{LEAGUE_KEY}/players/stats;type=date;date={date}"
+            
+            print(f"[DEBUG STATS] Getting access token for date {date}...")
+            access_token = self.token_manager.get_access_token()
+            print(f"[DEBUG STATS] Access token obtained (length: {len(access_token) if access_token else 0})")
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Accept': 'application/xml'
+            }
+            
+            print(f"[DEBUG STATS] Making API request to: {url}")
+            response = requests.get(url, headers=headers)
+            print(f"[DEBUG STATS] API response status: {response.status_code}")
+            
+            if response.status_code == 401:
+                print(f"[DEBUG STATS] Got 401, attempting token refresh...")
+                # Token might have expired, force refresh and retry
+                self.token_manager.tokens['access_token'] = None  # Force refresh
+                new_token = self.token_manager.get_access_token()
+                print(f"[DEBUG STATS] New token obtained (length: {len(new_token) if new_token else 0})")
+                headers['Authorization'] = f'Bearer {new_token}'
+                response = requests.get(url, headers=headers)
+                print(f"[DEBUG STATS] Retry response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                # Parse XML response
+                xml_text = re.sub(' xmlns="[^"]+"', '', response.text, count=1)
+                root = ET.fromstring(xml_text)
+                
+                stats_list = []
+                
+                # Parse player stats
+                for player in root.findall(".//player"):
+                    player_id = player.findtext("player_id")
+                    if not player_id:
+                        continue
+                        
+                    # Extract player stats
+                    stats_node = player.find("player_stats")
+                    if stats_node is None:
+                        continue
+                    
+                    # Parse individual stats
+                    stats = {}
+                    for stat in stats_node.findall(".//stat"):
+                        stat_id = stat.findtext("stat_id")
+                        stat_value = stat.findtext("value", "0")
+                        
+                        # Convert stat_id to stat name (using common MLB stat IDs)
+                        stat_mappings = {
+                            '0': 'games_played',
+                            '1': 'at_bats', 
+                            '2': 'runs',
+                            '3': 'hits',
+                            '4': 'singles',
+                            '5': 'doubles',
+                            '6': 'triples', 
+                            '7': 'home_runs',
+                            '8': 'rbis',
+                            '9': 'stolen_bases',
+                            '10': 'caught_stealing',
+                            '11': 'walks',
+                            '12': 'strikeouts'
+                        }
+                        
+                        if stat_id in stat_mappings:
+                            stats[stat_mappings[stat_id]] = int(stat_value) if stat_value.isdigit() else 0
+                    
+                    if stats:  # Only add if we got some stats
+                        stats_list.append({
+                            'player_id': player_id,
+                            'date': date,
+                            'stats': stats
+                        })
+                
+                return stats_list
+                
+            elif response.status_code == 404:
+                # No stats data for this date - this is normal
+                return []
+            else:
+                print(f"[WARN] Failed to fetch stats for {date}: Status {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"[ERROR] Error fetching stats for {date}: {e}")
+            self.stats['errors'] += 1
+            
+            # Fallback to getting existing stats from database for stat correction detection
+            cursor = self.conn.cursor()
+            cursor.execute("""
+                SELECT yahoo_player_id, batting_hits, batting_runs, 
+                       batting_rbis, batting_home_runs, batting_stolen_bases
+                FROM daily_gkl_player_stats
+                WHERE date = ?
+                  AND has_batting_data = 1
+                LIMIT 10
+            """, (date,))
+            
+            stats_list = []
+            for row in cursor.fetchall():
+                player_id, h, r, rbi, hr, sb = row
+                if player_id:  # Skip NULL player IDs
+                    stats_list.append({
+                        'player_id': player_id,
+                        'date': date,
+                        'stats': {
+                            'hits': h or 0,
+                            'runs': r or 0,
+                            'rbis': rbi or 0,
+                            'home_runs': hr or 0,
+                            'stolen_bases': sb or 0
+                        }
+                    })
+            
+            return stats_list
     
     def detect_and_log_correction(
         self, player_id: int, date: str, 
