@@ -252,34 +252,24 @@ class D1Connection:
         for i in range(0, len(statements), self.MAX_BATCH_SIZE):
             batch = statements[i:i + self.MAX_BATCH_SIZE]
             
-            # Convert to D1 batch format
-            batch_statements = []
+            # Execute queries individually since batch endpoint has issues
+            logger.debug(f"Executing {len(batch)} queries individually")
+            
             for query, params in batch:
-                batch_statements.append({
-                    "sql": query,
-                    "params": params or []
-                })
-            
-            data = {"statements": batch_statements}
-            
-            logger.debug(f"Executing D1 batch: {len(batch)} statements")
-            
-            result = self._make_request("/batch", data)
-            
-            # Process batch results - D1 batch returns list of results
-            batch_results = result.get('result', [])
-            for batch_result in batch_results:
-                # Flatten meta information similar to single query
-                meta = batch_result.get('meta', {})
-                processed_result = {
-                    'results': batch_result.get('results', []),
-                    'success': batch_result.get('success', True),
-                    'changes': meta.get('changes', 0),
-                    'last_row_id': meta.get('last_row_id'),
-                    'rows_read': meta.get('rows_read', 0),
-                    'rows_written': meta.get('rows_written', 0)
-                }
-                all_results.append(processed_result)
+                try:
+                    result = self.execute(query, params)
+                    all_results.append(result)
+                except Exception as e:
+                    # Add error result
+                    error_result = {
+                        'results': [],
+                        'success': False,
+                        'changes': 0,
+                        'rows_read': 0,
+                        'rows_written': 0,
+                        'error': str(e)
+                    }
+                    all_results.append(error_result)
         
         return all_results
     
