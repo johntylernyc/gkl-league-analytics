@@ -47,12 +47,12 @@ def export_recent_data():
     # Get job_ids from transactions
     try:
         cursor.execute("""
-            SELECT DISTINCT job_id FROM league_transactions 
+            SELECT DISTINCT job_id FROM transactions 
             WHERE created_at >= ? AND job_id IS NOT NULL
         """, (last_job_time,))
         job_ids.update([row[0] for row in cursor.fetchall()])
     except sqlite3.OperationalError as e:
-        print(f"⚠️  Warning: Could not get job_ids from league_transactions: {e}")
+        print(f"⚠️  Warning: Could not get job_ids from transactions: {e}")
     
     # Get job_ids from lineups
     try:
@@ -114,7 +114,7 @@ VALUES ('{escaped_job_id}', 'data_sync', 'production', 'completed');""")
                from_team_key as source_team_key,
                NULL as source_team_name,
                job_id
-        FROM league_transactions
+        FROM transactions
         WHERE created_at >= ?
         ORDER BY transaction_date, transaction_id
     """, (last_job_time,))

@@ -53,7 +53,7 @@ def populate_sample_transactions():
     
     # Insert transactions
     cursor.executemany("""
-        INSERT OR REPLACE INTO league_transactions (
+        INSERT OR REPLACE INTO transactions (
             transaction_id, league_key, season, transaction_date,
             transaction_type, team_key, team_name, player_id, player_name,
             from_team_key, to_team_key, content_hash, job_id
@@ -63,7 +63,7 @@ def populate_sample_transactions():
     conn.commit()
     
     # Report what was added
-    cursor.execute("SELECT COUNT(*) FROM league_transactions")
+    cursor.execute("SELECT COUNT(*) FROM transactions")
     count = cursor.fetchone()[0]
     
     print(f"[OK] Added {len(transactions)} sample transactions")
@@ -72,7 +72,7 @@ def populate_sample_transactions():
     # Show recent transactions
     cursor.execute("""
         SELECT transaction_date, COUNT(*) as txn_count
-        FROM league_transactions
+        FROM transactions
         WHERE transaction_date >= date('now', '-7 days')
         GROUP BY transaction_date
         ORDER BY transaction_date DESC

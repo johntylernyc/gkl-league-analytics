@@ -449,6 +449,7 @@ export default {
         }
       }
       
+      
       // Player spotlight endpoint
       const playerSpotlightMatch = pathname.match(/^\/players\/(\d+)\/spotlight$/);
       if (playerSpotlightMatch) {
@@ -462,7 +463,13 @@ export default {
               player_id,
               player_name,
               player_team,
-              position_type,
+              CASE 
+                WHEN eligible_positions LIKE '%SP%' OR 
+                     eligible_positions LIKE '%RP%' OR 
+                     eligible_positions = 'P' 
+                THEN 'P'
+                ELSE 'B'
+              END as position_type,
               eligible_positions,
               player_status,
               team_name as current_fantasy_team
@@ -492,10 +499,29 @@ export default {
             ORDER BY MAX(date) DESC
           `).bind(playerId).all();
           
-          // The first team in results (ordered by MAX(date) DESC) is the current team
-          const actualCurrentTeam = teamHistory.results?.[0]?.team_name || playerInfo.current_fantasy_team;
+          // Get the latest date in the database to determine "current" status
+          const maxDateResult = await env.DB.prepare(`
+            SELECT MAX(date) as max_date FROM daily_lineups
+          `).first();
+          const databaseMaxDate = maxDateResult?.max_date || new Date().toISOString().split('T')[0];
           
-          // Update playerInfo with the correct current team
+          // Check if the player is currently on a team using 7-day recency check (same as Player Explorer)
+          const mostRecentTeam = teamHistory.results?.[0];
+          let actualCurrentTeam = null;
+          
+          if (mostRecentTeam && mostRecentTeam.to_date) {
+            // Calculate days between last rostered date and latest database date
+            const lastDate = new Date(mostRecentTeam.to_date + 'T00:00:00Z');
+            const maxDate = new Date(databaseMaxDate + 'T00:00:00Z');
+            const daysSinceLastRostered = Math.floor((maxDate - lastDate) / (1000 * 60 * 60 * 24));
+            
+            // Use same 7-day threshold as Player Explorer
+            if (daysSinceLastRostered <= 7) {
+              actualCurrentTeam = mostRecentTeam.team_name;
+            }
+          }
+          
+          // Override the playerInfo with the correct current team
           playerInfo.current_fantasy_team = actualCurrentTeam;
           
           // Calculate total days for percentages
@@ -564,6 +590,14 @@ export default {
           
           const minDate = dateRangeResult?.min_date || '2025-07-01';
           const maxDate = dateRangeResult?.max_date || '2025-08-03';
+          
+          // Calculate total season days (from season start to current date)
+          const seasonStartDate = new Date(minDate);
+          const currentDate = new Date(maxDate);
+          const totalSeasonDays = Math.floor((currentDate - seasonStartDate) / (1000 * 60 * 60 * 24)) + 1;
+          
+          // Calculate not rostered days
+          const notRosteredDays = Math.max(0, totalSeasonDays - totalDays);
           
           // Generate months that contain any database data (extend to full calendar months)
           const generateSeasonMonths = (startDate, endDate) => {
@@ -721,9 +755,14 @@ export default {
             // Calculate total rostered days for this month
             const totalRosteredDays = month.started + month.benched + month.minor_leagues + month.injured_list;
             
-            // Calculate not_rostered as the difference between data days and rostered days
-            // This ensures we only show "not rostered" for days where data exists but player wasn't on a team
-            month.not_rostered = Math.max(0, month.data_days - totalRosteredDays);
+            // Calculate not_rostered properly: only count days when player was available but not on any roster
+            // This should be based on actual player data, not global database days
+            const playerDaysInMonth = totalRosteredDays; // These are the only days the player appears in the database
+            
+            // For monthly timeline, if a player appears in the database, they were rostered
+            // The previous calculation used total database days vs player days, which was incorrect
+            // Players should only show "Not Rostered" for explicit gaps in their roster history
+            month.not_rostered = 0;
             
             // Sort overall positions chronologically
             month.positions.sort((a, b) => (a.period_start || '').localeCompare(b.period_start || ''));
@@ -750,40 +789,40 @@ export default {
             season: season,
             usage_breakdown: {
               season: season,
-              total_days: totalDays,
+              total_days: totalSeasonDays,  // Use total season days, not just rostered days
               current_team_days: currentTeamDays,
               other_team_days: otherTeamDays,
               current_team: playerInfo.current_fantasy_team,
               usage_breakdown: {
                 started: {
                   days: startedDays,
-                  percentage: totalDays > 0 ? (startedDays / totalDays * 100) : 0,
+                  percentage: totalSeasonDays > 0 ? (startedDays / totalSeasonDays * 100) : 0,
                   positions: playerInfo.eligible_positions.split(',')
                 },
                 benched: {
                   days: benchedDays,
-                  percentage: totalDays > 0 ? (benchedDays / totalDays * 100) : 0,
+                  percentage: totalSeasonDays > 0 ? (benchedDays / totalSeasonDays * 100) : 0,
                   positions: ['BN']
                 },
                 injured_list: {
                   days: injuredDays,
-                  percentage: totalDays > 0 ? (injuredDays / totalDays * 100) : 0,
+                  percentage: totalSeasonDays > 0 ? (injuredDays / totalSeasonDays * 100) : 0,
                   positions: []
                 },
                 minor_leagues: {
                   days: minorLeagueDays,
-                  percentage: totalDays > 0 ? (minorLeagueDays / totalDays * 100) : 0,
+                  percentage: totalSeasonDays > 0 ? (minorLeagueDays / totalSeasonDays * 100) : 0,
                   positions: []
                 },
                 other_roster: {
                   days: otherTeamDays,
-                  percentage: totalDays > 0 ? (otherTeamDays / totalDays * 100) : 0,
+                  percentage: totalSeasonDays > 0 ? (otherTeamDays / totalSeasonDays * 100) : 0,
                   positions: [],
                   teams: otherTeams
                 },
                 not_rostered: {
-                  days: 0,
-                  percentage: 0,
+                  days: notRosteredDays,
+                  percentage: totalSeasonDays > 0 ? (notRosteredDays / totalSeasonDays * 100) : 0,
                   positions: []
                 }
               }
@@ -1030,15 +1069,17 @@ export default {
             }
           }
           
-          // Get player type
+          // Get player type - check for all pitcher positions
           const playerInfo = await env.DB.prepare(`
-            SELECT position_type
+            SELECT position_type, selected_position
             FROM daily_lineups
             WHERE player_id = ?
             LIMIT 1
           `).bind(playerId).first();
           
-          const isPitcher = playerInfo?.position_type === 'P';
+          // Check if pitcher - includes P, SP (Starting Pitcher), RP (Relief Pitcher)
+          const isPitcher = playerInfo?.position_type === 'P' || 
+                            ['P', 'SP', 'RP'].includes(playerInfo?.selected_position);
           
           // Get stats aggregated by roster situation and team
           const getStatsForSituation = async (situationFilter, teamFilter = '') => {
@@ -1053,7 +1094,7 @@ export default {
                 return {};
               }
               
-              // Try to match by player name in the stats table
+              // Try to match using yahoo_player_id which is the same as player_id
               const statsResult = await env.DB.prepare(`
                 SELECT 
                   COALESCE(SUM(s.batting_runs), 0) as runs,
@@ -1078,14 +1119,14 @@ export default {
                   COALESCE(SUM(s.pitching_walks_allowed), 0) as pitching_walks,
                   COALESCE(SUM(s.pitching_quality_starts), 0) as quality_starts
                 FROM daily_gkl_player_stats s
-                WHERE s.player_name = ?
+                WHERE s.yahoo_player_id = ?
                   AND EXISTS (
                     SELECT 1 FROM daily_lineups l 
                     WHERE l.player_id = ? 
                     AND l.date = s.date
                     ${situationFilter} ${teamFilter}
                   )
-              `).bind(playerNameResult.player_name, playerId).first();
+              `).bind(playerId, playerId).first();
               return statsResult || {};
             } catch (error) {
               console.log('Stats query failed for situation:', situationFilter, teamFilter, error);
@@ -1093,43 +1134,63 @@ export default {
             }
           };
 
-          // Get aggregated stats for all teams (simpler approach for now)
+          // Get stats for CURRENT TEAM only (Started and Benched)
+          const currentTeamFilter = currentTeam ? `AND l.team_name = '${currentTeam.replace(/'/g, "''")}' ` : '';
+          
           const startedStats = await getStatsForSituation(
             "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
-            ''
+            currentTeamFilter
           );
           const benchedStats = await getStatsForSituation(
             "AND l.selected_position = 'BN'", 
-            ''
+            currentTeamFilter
           );
           const minorLeagueStats = await getStatsForSituation(
             "AND l.selected_position = 'NA'", 
-            ''
+            currentTeamFilter
           );
           const injuredListStats = await getStatsForSituation(
             "AND l.selected_position IN ('IL', 'IL10', 'IL60')", 
-            ''
+            currentTeamFilter
           );
           
+          // Get aggregated stats for all other teams combined (ALL positions)
+          let otherTeamsAllStats = {};
+          
+          if (otherTeamsList.length > 0) {
+            // Build a team filter for all other teams
+            const otherTeamsFilter = otherTeamsList.map(t => `'${t.team_name.replace(/'/g, "''")}'`).join(',');
+            
+            // Get ALL stats for other teams (no position filter)
+            otherTeamsAllStats = await getStatsForSituation(
+              "", // No position filter - get all stats
+              `AND l.team_name IN (${otherTeamsFilter})`
+            );
+          }
+          
           // Get stats for each individual other team (for expandable view)
+          // For other teams, we want ALL stats regardless of position
           const otherTeamsDetailedStats = [];
           for (const team of otherTeamsList) {
-            const teamStartedStats = await getStatsForSituation(
-              "AND l.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')", 
+            // Get ALL stats for this team (both started and benched combined)
+            const teamAllStats = await getStatsForSituation(
+              "", // No position filter - get all stats
               `AND l.team_name = '${team.team_name.replace(/'/g, "''")}'`
             );
-            const teamBenchedStats = await getStatsForSituation(
-              "AND l.selected_position = 'BN'", 
-              `AND l.team_name = '${team.team_name.replace(/'/g, "''")}'`
-            );
+            
+            // Get date range for this team
+            const dateRangeResult = await env.DB.prepare(`
+              SELECT MIN(date) as from_date, MAX(date) as to_date
+              FROM daily_lineups
+              WHERE player_id = ? AND team_name = ?
+            `).bind(playerId, team.team_name).first();
             
             otherTeamsDetailedStats.push({
               team_name: team.team_name,
               days: team.days,
-              started_days: team.started_days,
-              benched_days: team.benched_days,
-              started_stats: teamStartedStats,
-              benched_stats: teamBenchedStats
+              from_date: dateRangeResult?.from_date || '',
+              to_date: dateRangeResult?.to_date || '',
+              stats: teamAllStats
             });
           }
 
@@ -1145,20 +1206,24 @@ export default {
           const calculateKBB = (strikeouts, walks) => walks > 0 ? strikeouts / walks : strikeouts > 0 ? strikeouts : 0;
 
           // Calculate total usage across all teams
-          let totalUsage = { started_days: 0, benched_days: 0, minor_league_days: 0, injured_days: 0 };
-          for (const team of usageByTeam.results || []) {
-            totalUsage.started_days += team.started_days || 0;
-            totalUsage.benched_days += team.benched_days || 0;
-            totalUsage.minor_league_days += team.minor_league_days || 0;
-            totalUsage.injured_days += team.injured_days || 0;
-          }
+          // Use the already processed currentTeamUsage and otherTeamsUsage
+          let totalUsage = {
+            started_days: (currentTeamUsage.started_days || 0) + (otherTeamsUsage.started_days || 0),
+            benched_days: (currentTeamUsage.benched_days || 0) + (otherTeamsUsage.benched_days || 0),
+            minor_league_days: (currentTeamUsage.minor_league_days || 0) + (otherTeamsUsage.minor_league_days || 0),
+            injured_days: (currentTeamUsage.injured_days || 0) + (otherTeamsUsage.injured_days || 0)
+          };
+          
+          console.log('Usage totals calculated:', totalUsage);
+          console.log('Current team:', currentTeam, currentTeamUsage);
+          console.log('Other teams count:', otherTeamsList.length);
           
           // Create performance breakdown response using aggregated stats
           const breakdown = {
             player_type: isPitcher ? 'pitcher' : 'batter',
             usage_breakdown: {
               started: {
-                days: totalUsage.started_days || 0,
+                days: currentTeamUsage.started_days || 0,
                 stats: {
                   batting: {
                     R: startedStats?.runs || 0,
@@ -1185,7 +1250,7 @@ export default {
                 }
               },
               benched: {
-                days: totalUsage.benched_days || 0,
+                days: currentTeamUsage.benched_days || 0,
                 stats: {
                   batting: {
                     R: benchedStats?.runs || 0,
@@ -1212,7 +1277,7 @@ export default {
                 }
               },
               minor_leagues: {
-                days: totalUsage.minor_league_days || 0,
+                days: currentTeamUsage.minor_league_days || 0,
                 stats: {
                   batting: {
                     R: minorLeagueStats?.runs || 0,
@@ -1239,7 +1304,7 @@ export default {
                 }
               },
               injured_list: {
-                days: totalUsage.injured_days || 0,
+                days: currentTeamUsage.injured_days || 0,
                 stats: {
                   batting: {
                     R: injuredListStats?.runs || 0,
@@ -1269,97 +1334,55 @@ export default {
                 days: otherTeamsList.reduce((sum, team) => sum + team.days, 0),
                 stats: {
                   batting: {
-                    R: (otherTeamsStartedStats?.runs || 0) + (otherTeamsBenchedStats?.runs || 0),
-                    H: (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
-                    '3B': (otherTeamsStartedStats?.triples || 0) + (otherTeamsBenchedStats?.triples || 0),
-                    HR: (otherTeamsStartedStats?.home_runs || 0) + (otherTeamsBenchedStats?.home_runs || 0),
-                    RBI: (otherTeamsStartedStats?.rbis || 0) + (otherTeamsBenchedStats?.rbis || 0),
-                    SB: (otherTeamsStartedStats?.stolen_bases || 0) + (otherTeamsBenchedStats?.stolen_bases || 0),
-                    AVG: calculateAvg(
-                      (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
-                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0)
-                    ),
-                    OBP: calculateOBP(
-                      (otherTeamsStartedStats?.hits || 0) + (otherTeamsBenchedStats?.hits || 0),
-                      (otherTeamsStartedStats?.walks || 0) + (otherTeamsBenchedStats?.walks || 0),
-                      (otherTeamsStartedStats?.hbp || 0) + (otherTeamsBenchedStats?.hbp || 0),
-                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0),
-                      (otherTeamsStartedStats?.sf || 0) + (otherTeamsBenchedStats?.sf || 0)
-                    ),
-                    SLG: calculateSLG(
-                      (otherTeamsStartedStats?.total_bases || 0) + (otherTeamsBenchedStats?.total_bases || 0),
-                      (otherTeamsStartedStats?.at_bats || 0) + (otherTeamsBenchedStats?.at_bats || 0)
-                    )
+                    R: otherTeamsAllStats?.runs || 0,
+                    H: otherTeamsAllStats?.hits || 0,
+                    '3B': otherTeamsAllStats?.triples || 0,
+                    HR: otherTeamsAllStats?.home_runs || 0,
+                    RBI: otherTeamsAllStats?.rbis || 0,
+                    SB: otherTeamsAllStats?.stolen_bases || 0,
+                    AVG: calculateAvg(otherTeamsAllStats?.hits, otherTeamsAllStats?.at_bats),
+                    OBP: calculateOBP(otherTeamsAllStats?.hits, otherTeamsAllStats?.walks, otherTeamsAllStats?.hbp, otherTeamsAllStats?.at_bats, otherTeamsAllStats?.sf),
+                    SLG: calculateSLG(otherTeamsAllStats?.total_bases, otherTeamsAllStats?.at_bats)
                   },
                   pitching: {
-                    APP: (otherTeamsStartedStats?.appearances || 0) + (otherTeamsBenchedStats?.appearances || 0),
-                    W: (otherTeamsStartedStats?.wins || 0) + (otherTeamsBenchedStats?.wins || 0),
-                    SV: (otherTeamsStartedStats?.saves || 0) + (otherTeamsBenchedStats?.saves || 0),
-                    K: (otherTeamsStartedStats?.strikeouts || 0) + (otherTeamsBenchedStats?.strikeouts || 0),
-                    HLD: (otherTeamsStartedStats?.holds || 0) + (otherTeamsBenchedStats?.holds || 0),
-                    ERA: calculateERA(
-                      (otherTeamsStartedStats?.earned_runs || 0) + (otherTeamsBenchedStats?.earned_runs || 0),
-                      (otherTeamsStartedStats?.innings_pitched || 0) + (otherTeamsBenchedStats?.innings_pitched || 0)
-                    ),
-                    WHIP: calculateWHIP(
-                      (otherTeamsStartedStats?.hits_allowed || 0) + (otherTeamsBenchedStats?.hits_allowed || 0),
-                      (otherTeamsStartedStats?.pitching_walks || 0) + (otherTeamsBenchedStats?.pitching_walks || 0),
-                      (otherTeamsStartedStats?.innings_pitched || 0) + (otherTeamsBenchedStats?.innings_pitched || 0)
-                    ),
-                    'K/BB': calculateKBB(
-                      (otherTeamsStartedStats?.strikeouts || 0) + (otherTeamsBenchedStats?.strikeouts || 0),
-                      (otherTeamsStartedStats?.pitching_walks || 0) + (otherTeamsBenchedStats?.pitching_walks || 0)
-                    ),
-                    QS: (otherTeamsStartedStats?.quality_starts || 0) + (otherTeamsBenchedStats?.quality_starts || 0)
+                    APP: otherTeamsAllStats?.appearances || 0,
+                    W: otherTeamsAllStats?.wins || 0,
+                    SV: otherTeamsAllStats?.saves || 0,
+                    K: otherTeamsAllStats?.strikeouts || 0,
+                    HLD: otherTeamsAllStats?.holds || 0,
+                    ERA: calculateERA(otherTeamsAllStats?.earned_runs, otherTeamsAllStats?.innings_pitched),
+                    WHIP: calculateWHIP(otherTeamsAllStats?.hits_allowed, otherTeamsAllStats?.pitching_walks, otherTeamsAllStats?.innings_pitched),
+                    'K/BB': calculateKBB(otherTeamsAllStats?.strikeouts, otherTeamsAllStats?.pitching_walks),
+                    QS: otherTeamsAllStats?.quality_starts || 0
                   }
                 },
                 teams: otherTeamsDetailedStats.map(team => ({
                   team_name: team.team_name,
                   days: team.days,
+                  from_date: team.from_date,
+                  to_date: team.to_date,
                   stats: {
                     batting: {
-                      R: (team.started_stats?.runs || 0) + (team.benched_stats?.runs || 0),
-                      H: (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
-                      '3B': (team.started_stats?.triples || 0) + (team.benched_stats?.triples || 0),
-                      HR: (team.started_stats?.home_runs || 0) + (team.benched_stats?.home_runs || 0),
-                      RBI: (team.started_stats?.rbis || 0) + (team.benched_stats?.rbis || 0),
-                      SB: (team.started_stats?.stolen_bases || 0) + (team.benched_stats?.stolen_bases || 0),
-                      AVG: calculateAvg(
-                        (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
-                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0)
-                      ),
-                      OBP: calculateOBP(
-                        (team.started_stats?.hits || 0) + (team.benched_stats?.hits || 0),
-                        (team.started_stats?.walks || 0) + (team.benched_stats?.walks || 0),
-                        (team.started_stats?.hbp || 0) + (team.benched_stats?.hbp || 0),
-                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0),
-                        (team.started_stats?.sf || 0) + (team.benched_stats?.sf || 0)
-                      ),
-                      SLG: calculateSLG(
-                        (team.started_stats?.total_bases || 0) + (team.benched_stats?.total_bases || 0),
-                        (team.started_stats?.at_bats || 0) + (team.benched_stats?.at_bats || 0)
-                      )
+                      R: team.stats?.runs || 0,
+                      H: team.stats?.hits || 0,
+                      '3B': team.stats?.triples || 0,
+                      HR: team.stats?.home_runs || 0,
+                      RBI: team.stats?.rbis || 0,
+                      SB: team.stats?.stolen_bases || 0,
+                      AVG: calculateAvg(team.stats?.hits, team.stats?.at_bats),
+                      OBP: calculateOBP(team.stats?.hits, team.stats?.walks, team.stats?.hbp, team.stats?.at_bats, team.stats?.sf),
+                      SLG: calculateSLG(team.stats?.total_bases, team.stats?.at_bats)
                     },
                     pitching: {
-                      APP: (team.started_stats?.appearances || 0) + (team.benched_stats?.appearances || 0),
-                      W: (team.started_stats?.wins || 0) + (team.benched_stats?.wins || 0),
-                      SV: (team.started_stats?.saves || 0) + (team.benched_stats?.saves || 0),
-                      K: (team.started_stats?.strikeouts || 0) + (team.benched_stats?.strikeouts || 0),
-                      HLD: (team.started_stats?.holds || 0) + (team.benched_stats?.holds || 0),
-                      ERA: calculateERA(
-                        (team.started_stats?.earned_runs || 0) + (team.benched_stats?.earned_runs || 0),
-                        (team.started_stats?.innings_pitched || 0) + (team.benched_stats?.innings_pitched || 0)
-                      ),
-                      WHIP: calculateWHIP(
-                        (team.started_stats?.hits_allowed || 0) + (team.benched_stats?.hits_allowed || 0),
-                        (team.started_stats?.pitching_walks || 0) + (team.benched_stats?.pitching_walks || 0),
-                        (team.started_stats?.innings_pitched || 0) + (team.benched_stats?.innings_pitched || 0)
-                      ),
-                      'K/BB': calculateKBB(
-                        (team.started_stats?.strikeouts || 0) + (team.benched_stats?.strikeouts || 0),
-                        (team.started_stats?.pitching_walks || 0) + (team.benched_stats?.pitching_walks || 0)
-                      ),
-                      QS: (team.started_stats?.quality_starts || 0) + (team.benched_stats?.quality_starts || 0)
+                      APP: team.stats?.appearances || 0,
+                      W: team.stats?.wins || 0,
+                      SV: team.stats?.saves || 0,
+                      K: team.stats?.strikeouts || 0,
+                      HLD: team.stats?.holds || 0,
+                      ERA: calculateERA(team.stats?.earned_runs, team.stats?.innings_pitched),
+                      WHIP: calculateWHIP(team.stats?.hits_allowed, team.stats?.pitching_walks, team.stats?.innings_pitched),
+                      'K/BB': calculateKBB(team.stats?.strikeouts, team.stats?.pitching_walks),
+                      QS: team.stats?.quality_starts || 0
                     }
                   }
                 }))
@@ -1635,7 +1658,8 @@ export default {
               COALESCE(ts.times_added, 0) as times_added,
               COALESCE(ts.times_dropped, 0) as times_dropped,
               CASE 
-                WHEN ps.days_rostered > 0 THEN 'Rostered'
+                -- Consider them rostered only if last seen within 7 days
+                WHEN ps.days_rostered > 0 AND julianday('now') - julianday(ps.last_seen) <= 7 THEN 'Rostered'
                 ELSE 'Free Agent'
               END as roster_status
             FROM player_summary ps

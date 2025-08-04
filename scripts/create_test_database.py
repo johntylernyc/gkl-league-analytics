@@ -40,9 +40,9 @@ def create_test_database():
         )
     """)
     
-    # Create minimal league_transactions table
+    # Create minimal transactions table (matching production schema)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS league_transactions (
+        CREATE TABLE IF NOT EXISTS transactions (
             transaction_id TEXT,
             league_key TEXT,
             season INTEGER,
@@ -139,24 +139,7 @@ def create_test_database():
     
     conn.commit()
     
-    # Add a few test records to prevent empty table errors
-    cursor.execute("""
-        INSERT OR IGNORE INTO league_transactions 
-        (transaction_id, league_key, season, transaction_date, transaction_type, team_key, team_name, player_id, player_name, job_id)
-        VALUES ('TEST001', 'mlb.l.6966', 2025, '2025-08-01', 'add', 'mlb.l.6966.t.1', 'Test Team 1', 'mlb.p.12345', 'Test Player', 'test_data')
-    """)
-    
-    cursor.execute("""
-        INSERT OR IGNORE INTO daily_lineups
-        (job_id, season, date, team_key, team_name, player_id, player_name, selected_position)
-        VALUES ('test_data', 2025, '2025-08-01', 'mlb.l.6966.t.1', 'Test Team 1', 'mlb.p.12345', 'Test Player', 'C')
-    """)
-    
-    cursor.execute("""
-        INSERT OR IGNORE INTO daily_gkl_player_stats
-        (yahoo_player_id, date, has_batting_data, batting_hits, batting_runs, batting_rbis)
-        VALUES (12345, '2025-08-01', 1, 2, 1, 1)
-    """)
+    # Do not insert test data - tables should be empty for real data collection
     
     conn.commit()
     conn.close()

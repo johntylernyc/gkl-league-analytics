@@ -139,7 +139,7 @@ class TransactionIncrementalUpdater:
         cursor.execute("""
             SELECT transaction_id, transaction_date, transaction_type, 
                    team_key, player_id, content_hash
-            FROM league_transactions
+            FROM transactions
             WHERE transaction_date BETWEEN ? AND ?
               AND league_key = ?
             ORDER BY transaction_date, transaction_id
@@ -209,7 +209,7 @@ class TransactionIncrementalUpdater:
         cursor.execute("""
             SELECT transaction_id, transaction_type, team_key, 
                    player_id, player_name
-            FROM league_transactions
+            FROM transactions
             WHERE transaction_date = ?
               AND league_key = ?
             LIMIT 10
@@ -294,7 +294,7 @@ class TransactionIncrementalUpdater:
             
             # Insert new transaction
             cursor.execute("""
-                INSERT OR REPLACE INTO league_transactions (
+                INSERT OR REPLACE INTO transactions (
                     job_id, league_key, season, transaction_id,
                     transaction_date, transaction_type,
                     team_key, player_id, player_name,
@@ -326,7 +326,7 @@ class TransactionIncrementalUpdater:
                     
                     # Update transaction
                     cursor.execute("""
-                        UPDATE league_transactions
+                        UPDATE transactions
                         SET content_hash = ?,
                             job_id = ?
                         WHERE transaction_id = ? 
@@ -338,7 +338,7 @@ class TransactionIncrementalUpdater:
                 # No hash stored yet, update it
                 result['updated'] += 1
                 cursor.execute("""
-                    UPDATE league_transactions
+                    UPDATE transactions
                     SET content_hash = ?
                     WHERE transaction_id = ? 
                       AND transaction_date = ?

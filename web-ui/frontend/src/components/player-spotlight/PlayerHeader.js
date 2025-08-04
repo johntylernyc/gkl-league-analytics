@@ -79,14 +79,12 @@ const PlayerHeader = ({
                     <span className="font-medium">{player.player_team}</span>
                     <span className="mx-2">•</span>
                     <span>{getPositionTypeLabel(player.position_type)}</span>
-                    {player.current_fantasy_team && (
-                      <>
-                        <span className="mx-2">•</span>
-                        <span className="text-gray-600">
-                          Currently on: {player.current_fantasy_team}
-                        </span>
-                      </>
-                    )}
+                    <span className="mx-2">•</span>
+                    <span className="text-gray-600">
+                      {player.current_fantasy_team ? 
+                        `Currently on: ${player.current_fantasy_team}` : 
+                        'Not Currently Rostered'}
+                    </span>
                   </div>
                 </div>
               </div>

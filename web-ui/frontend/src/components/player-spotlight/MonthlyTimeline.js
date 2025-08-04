@@ -74,171 +74,229 @@ const MonthlyTimeline = ({ monthlyData, season, playerName }) => {
     return 'bg-gray-300';
   };
 
-  const getStatusLabel = (status) => {
-    if (['BN'].includes(status)) return 'Benched';
-    if (['IL', 'IL10', 'IL15', 'IL60'].includes(status)) return 'Injured List';
-    if (status === 'NA') return 'Minor Leagues';
-    if (status === 'Not Owned' || status === 'FA' || status === 'Not Rostered') return 'Not Rostered';
-    return 'Started';
-  };
 
-  // Generate timeline bars for each month with team segments
+  // Generate timeline bars for each month with day-by-day chronological representation
   const generateTimelineBar = (monthData) => {
-    const totalDays = monthData.total_days;
-    const segments = [];
-    let accountedDays = 0;
-
-    // Calculate total days accounted for in the data
-    if (monthData.teams && monthData.teams.length > 0) {
-      accountedDays = monthData.teams.reduce((sum, team) => sum + team.days, 0);
-    } else if (monthData.positions && monthData.positions.length > 0) {
-      accountedDays = monthData.positions.reduce((sum, pos) => sum + pos.days, 0);
+    const [year, month] = monthData.month_year.split('-');
+    const monthStartDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+    const monthEndDate = new Date(parseInt(year), parseInt(month), 0); // Last day of month
+    const totalDaysInMonth = monthEndDate.getDate();
+    
+    // Define actual season start dates by year
+    const seasonStartDates = {
+      2025: new Date('2025-03-27'),
+      2024: new Date('2024-03-28'),
+      2023: new Date('2023-03-30'),
+      2022: new Date('2022-04-07'),
+      2021: new Date('2021-04-01'),
+      2020: new Date('2020-07-23'),
+      2019: new Date('2019-03-28'),
+      2018: new Date('2018-03-29'),
+      2017: new Date('2017-04-02'),
+      2016: new Date('2016-04-03'),
+      2015: new Date('2015-04-05'),
+      2014: new Date('2014-03-30'),
+      2013: new Date('2013-03-31'),
+      2012: new Date('2012-03-28'),
+      2011: new Date('2011-03-31'),
+      2010: new Date('2010-04-04'),
+      2009: new Date('2009-04-05'),
+      2008: new Date('2008-03-25')
+    };
+    
+    const seasonStartDate = seasonStartDates[parseInt(year)] || new Date(parseInt(year), 3, 1); // Fallback to April 1st
+    const currentDate = new Date();
+    
+    // Create a day-by-day status map
+    const dayStatusMap = {};
+    
+    // First, mark all days as their default status
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const dayDate = new Date(parseInt(year), parseInt(month) - 1, day);
+      
+      if (dayDate < seasonStartDate) {
+        dayStatusMap[dateStr] = { status: 'pre-season', team: null };
+      } else if (dayDate > currentDate) {
+        dayStatusMap[dateStr] = { status: 'future', team: null };
+      } else {
+        dayStatusMap[dateStr] = { status: 'not-rostered', team: null };
+      }
     }
-
-    // If we have team data, organize by team
+    
+    // Then, fill in actual roster data
     if (monthData.teams && monthData.teams.length > 0) {
-      // Sort teams chronologically by the earliest position start date
-      const sortedTeams = [...monthData.teams].sort((a, b) => {
-        const aEarliest = a.positions.reduce((earliest, pos) => 
-          !earliest || (pos.period_start && pos.period_start < earliest) ? pos.period_start : earliest, null);
-        const bEarliest = b.positions.reduce((earliest, pos) => 
-          !earliest || (pos.period_start && pos.period_start < earliest) ? pos.period_start : earliest, null);
-        return (aEarliest || '').localeCompare(bEarliest || '');
-      });
-
-      sortedTeams.forEach((teamData, teamIndex) => {
-        const teamPercentage = (teamData.days / totalDays) * 100;
-        const isCurrentTeam = teamData.team_name === currentTeam;
-        const teamColor = teamColors[teamData.team_name];
-        
-        // Create segments for this team's positions
-        const teamSegments = [];
-        let runningPercentage = 0;
-        
-        // Sort positions chronologically within this team
-        const sortedPositions = [...teamData.positions].sort((a, b) => 
-          (a.period_start || '').localeCompare(b.period_start || ''));
-        
-        sortedPositions.forEach((pos, posIndex) => {
-          const posPercentage = (pos.days / teamData.days) * teamPercentage;
-          const color = getStatusColor(pos.position, teamData.team_name);
-          
-          teamSegments.push(
-            <div
-              key={`${teamIndex}-${posIndex}`}
-              className={`${color} h-full flex items-center justify-center relative transition-opacity hover:opacity-100`}
-              style={{ 
-                width: `${posPercentage}%`,
-                opacity: selectedTeam && selectedTeam !== teamData.team_name ? 0.3 : 1
-              }}
-              title={`${teamData.team_name} - ${pos.position}: ${pos.days} days${pos.period_start && pos.period_end ? ` (${pos.period_start} to ${pos.period_end})` : ''}`}
-            >
-              {posPercentage > 10 && (
-                <span className="text-xs font-medium text-white">
-                  {pos.days}
-                </span>
-              )}
-            </div>
-          );
-          runningPercentage += posPercentage;
+      // Find the latest roster period in this month to handle month-end boundary
+      let latestPeriod = null;
+      let latestEndDate = null;
+      
+      monthData.teams.forEach(teamData => {
+        teamData.positions.forEach(pos => {
+          if (pos.period_start && pos.period_end) {
+            const startDate = new Date(pos.period_start);
+            const endDate = new Date(pos.period_end);
+            
+            // Fill each day in this period (use safer date iteration)
+            const startDateStr = pos.period_start;
+            const endDateStr = pos.period_end;
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            
+            for (let current = new Date(start); current <= end; current.setUTCDate(current.getUTCDate() + 1)) {
+              const dateStr = current.toISOString().split('T')[0];
+              if (dayStatusMap[dateStr]) {
+                dayStatusMap[dateStr] = {
+                  status: pos.position,
+                  team: teamData.team_name
+                };
+              }
+            }
+            
+            // Track the latest period for month-end extension
+            if (!latestEndDate || endDate > latestEndDate) {
+              latestEndDate = endDate;
+              latestPeriod = {
+                position: pos.position,
+                team: teamData.team_name,
+                endDate: endDate
+              };
+            }
+          }
         });
+      });
+      
+      // Extend the latest period to cover remaining days in month (if not future dates)
+      if (latestPeriod && latestEndDate) {
+        // Check if the latest period ends before the last day of the current month
+        const latestEndDay = latestEndDate.getDate();
+        const latestEndMonth = latestEndDate.getMonth();
+        const latestEndYear = latestEndDate.getFullYear();
         
-        // Add team separator if not the last team
-        if (teamIndex < monthData.teams.length - 1) {
-          teamSegments.push(
-            <div key={`separator-${teamIndex}`} className="w-px h-full bg-gray-600"></div>
-          );
+        // Only extend if the latest period ends within the current month but before the last day
+        if (latestEndYear === parseInt(year) && 
+            latestEndMonth === parseInt(month) - 1 && 
+            latestEndDay < totalDaysInMonth) {
+          
+          // Fill remaining days in month with the latest period's status
+          for (let day = latestEndDay + 1; day <= totalDaysInMonth; day++) {
+            const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            
+            // Only extend if currently marked as not-rostered (skip future date check for now to debug)
+            if (dayStatusMap[dateStr] && dayStatusMap[dateStr].status === 'not-rostered') {
+              dayStatusMap[dateStr] = {
+                status: latestPeriod.position,
+                team: latestPeriod.team
+              };
+            }
+          }
         }
-        
-        segments.push(...teamSegments);
-      });
+      }
     } else if (monthData.positions && monthData.positions.length > 0) {
-      // Fallback to position-only display
-      const sortedPositions = [...monthData.positions].sort((a, b) => 
-        (a.period_start || '').localeCompare(b.period_start || ''));
-      
-      sortedPositions.forEach((pos, index) => {
-        const percentage = (pos.days / totalDays) * 100;
-        const color = getStatusColor(pos.position, currentTeam);
-        
-        segments.push(
-          <div
-            key={index}
-            className={`${color} h-full flex items-center justify-center relative`}
-            style={{ width: `${percentage}%` }}
-            title={`${pos.position}: ${pos.days} days${pos.period_start && pos.period_end ? ` (${pos.period_start} to ${pos.period_end})` : ''}`}
-          >
-            {percentage > 15 && (
-              <span className="text-xs font-medium text-white">
-                {pos.days}
-              </span>
-            )}
-          </div>
-        );
+      // Fallback to position-only data
+      monthData.positions.forEach(pos => {
+        if (pos.period_start && pos.period_end) {
+          const startDate = new Date(pos.period_start);
+          const endDate = new Date(pos.period_end);
+          
+          for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            if (dayStatusMap[dateStr]) {
+              dayStatusMap[dateStr] = {
+                status: pos.position,
+                team: currentTeam
+              };
+            }
+          }
+        }
       });
     }
-
-    // Calculate unaccounted days (excluding future days)
-    const futureDays = monthData.future_days || 0;
-    const notRosteredDays = totalDays - accountedDays - futureDays;
     
-    // Create an array to collect all segments with chronological information
-    const allSegments = [...segments];
+    // Group consecutive days with same status for rendering
+    const segments = [];
+    let currentSegment = null;
     
-    // Add "Not Rostered" segment if there are unaccounted days
-    // Note: These should be distributed chronologically, but without date info
-    // we place them at the beginning as they typically represent pre-ownership periods
-    if (notRosteredDays > 0) {
-      const notRosteredPercentage = (notRosteredDays / totalDays) * 100;
-      const notRosteredSegment = (
-        <div
-          key="not-rostered"
-          className="bg-gray-400 h-full flex items-center justify-center relative"
-          style={{ width: `${notRosteredPercentage}%` }}
-          title={`Not Rostered: ${notRosteredDays} days`}
-        >
-          {notRosteredPercentage > 8 && (
-            <span className="text-xs font-medium text-white">
-              {notRosteredDays}
-            </span>
-          )}
-        </div>
-      );
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const dateStr = `${year}-${month.padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      const dayData = dayStatusMap[dateStr];
       
-      // Place not rostered segment at the beginning for months where player wasn't owned initially
-      allSegments.unshift(notRosteredSegment);
+      if (!currentSegment || 
+          currentSegment.status !== dayData.status || 
+          currentSegment.team !== dayData.team) {
+        // Start new segment
+        if (currentSegment) {
+          segments.push(currentSegment);
+        }
+        currentSegment = {
+          status: dayData.status,
+          team: dayData.team,
+          days: 1,
+          startDay: day,
+          endDay: day
+        };
+      } else {
+        // Continue current segment
+        currentSegment.days++;
+        currentSegment.endDay = day;
+      }
     }
-
-    // Add transparent segment for future days at the end (days that haven't happened yet)
-    if (futureDays > 0) {
-      const futureDaysPercentage = (futureDays / totalDays) * 100;
-      allSegments.push(
-        <div
-          key="future-days"
-          className="bg-transparent h-full flex items-center justify-center relative border border-gray-300"
-          style={{ 
-            width: `${futureDaysPercentage}%`,
-            backgroundColor: 'transparent'
-          }}
-          title={`Future days: ${futureDays} days`}
-        >
-          {/* No text for future days */}
-        </div>
-      );
+    
+    // Don't forget the last segment
+    if (currentSegment) {
+      segments.push(currentSegment);
     }
-
-    // Handle case where there's no data at all
-    if (allSegments.length === 0) {
+    
+    // Render segments
+    const renderedSegments = segments.map((segment, index) => {
+      const percentage = (segment.days / totalDaysInMonth) * 100;
+      let className, title;
+      
+      switch (segment.status) {
+        case 'pre-season':
+          return (
+            <div
+              key={`segment-${index}`}
+              className="bg-transparent h-full"
+              style={{ width: `${percentage}%` }}
+              title={`Pre-season: ${segment.days} days`}
+            />
+          );
+        case 'future':
+          return (
+            <div
+              key={`segment-${index}`}
+              className="bg-white bg-opacity-50 h-full"
+              style={{ width: `${percentage}%` }}
+              title={`Future: ${segment.days} days`}
+            />
+          );
+        case 'not-rostered':
+          className = 'bg-gray-400 h-full flex items-center justify-center relative';
+          title = `Not Rostered: ${segment.days} days`;
+          break;
+        default:
+          const color = getStatusColor(segment.status, segment.team);
+          className = `${color} h-full flex items-center justify-center relative transition-opacity hover:opacity-100`;
+          title = `${segment.team || 'Unknown'} - ${segment.status}: ${segment.days} days`;
+          break;
+      }
+      
       return (
-        <div className="h-8 bg-gray-400 rounded flex items-center justify-center">
-          <span className="text-xs font-medium text-white">Not Rostered ({totalDays} days)</span>
+        <div
+          key={`segment-${index}`}
+          className={className}
+          style={{ 
+            width: `${percentage}%`,
+            opacity: selectedTeam && segment.team && selectedTeam !== segment.team ? 0.3 : 1
+          }}
+          title={title}
+        >
         </div>
       );
-    }
+    });
 
     return (
       <div className="h-8 bg-gray-200 rounded flex overflow-hidden border border-gray-300">
-        {allSegments}
+        {renderedSegments}
       </div>
     );
   };
@@ -362,18 +420,6 @@ const MonthlyTimeline = ({ monthlyData, season, playerName }) => {
       {/* Timeline */}
       <div className="space-y-4">
         {monthlyData.map((monthData, index) => {
-          // Calculate team-specific summaries
-          const teamSummaries = {};
-          if (monthData.teams) {
-            monthData.teams.forEach(team => {
-              teamSummaries[team.team_name] = {
-                days: team.days,
-                started: team.summary?.started || 0,
-                benched: team.summary?.benched || 0
-              };
-            });
-          }
-          
           return (
             <div 
               key={index}
@@ -382,34 +428,10 @@ const MonthlyTimeline = ({ monthlyData, season, playerName }) => {
               onMouseLeave={() => setHoveredMonth(null)}
             >
               {/* Month Header */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2">
                 <h3 className="text-sm font-medium text-gray-900">
                   {formatMonthYear(monthData)}
                 </h3>
-                <div className="text-right text-sm text-gray-600">
-                  {Object.keys(teamSummaries).length > 0 ? (
-                    <div className="flex gap-3">
-                      {Object.entries(teamSummaries).map(([team, summary]) => (
-                        <span key={team} className="inline-flex items-center">
-                          <span className={`w-2 h-2 rounded-full mr-1 ${teamColors[team]?.bg || 'bg-gray-400'}`}></span>
-                          <span>{summary.started}/{summary.benched}</span>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <>
-                      <span>{monthData.summary.started} started</span>
-                      <span className="mx-1">/</span>
-                      <span>{monthData.summary.benched} benched</span>
-                      {monthData.summary.injured_list > 0 && (
-                        <>
-                          <span className="mx-1">/</span>
-                          <span>{monthData.summary.injured_list} IL</span>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
               </div>
 
               {/* Timeline Bar */}
@@ -460,6 +482,16 @@ const MonthlyTimeline = ({ monthlyData, season, playerName }) => {
                           </div>
                         ))}
                       </>
+                    )}
+                    
+                    {/* Show Not Rostered days if any */}
+                    {monthData.summary && monthData.summary.not_rostered > 0 && (
+                      <div className="mt-2">
+                        <div className="flex justify-between">
+                          <span className="mr-3">Not Rostered:</span>
+                          <span>{monthData.summary.not_rostered} days</span>
+                        </div>
+                      </div>
                     )}
                     
                     <div className="border-t border-gray-400 mt-2 pt-2">
