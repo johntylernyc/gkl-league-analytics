@@ -1,0 +1,52 @@
+name = "gkl-fantasy-api"
+main = "src/index-with-db.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Account ID will be added after wrangler login
+# account_id = "YOUR_ACCOUNT_ID"
+
+# Development environment
+[env.development]
+name = "gkl-fantasy-api-dev"
+vars = { ENVIRONMENT = "development" }
+
+# Production environment
+[env.production]
+name = "gkl-fantasy-api-prod"
+vars = { ENVIRONMENT = "production" }
+
+# Custom domain routing (update with your domain)
+routes = [
+  { pattern = "api.yourdomain.com/*", zone_name = "yourdomain.com" }
+]
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "gkl-fantasy"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# KV namespace for caching
+[[kv_namespaces]]
+binding = "CACHE"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# R2 bucket for file storage (optional, for backups)
+# [[r2_buckets]]
+# binding = "BACKUP_BUCKET"
+# bucket_name = "gkl-fantasy-backups"
+
+# Durable Objects (optional, for real-time features)
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER"
+# class_name = "RateLimiter"
+# script_name = "rate-limiter"
+
+# Build configuration
+[build]
+command = ""
+
+# Define cron triggers for scheduled tasks
+[triggers]
+crons = ["0 2 * * *", "0 14 * * *"]  # 2 AM and 2 PM daily

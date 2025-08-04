@@ -56,6 +56,25 @@ credentials/
 auth/config.py
 scripts/sync_notion_prds.py
 
+# CloudFlare Workers Configuration
+cloudflare-deployment/.env
+cloudflare-deployment/.env.*
+cloudflare-deployment/wrangler.toml
+cloudflare-deployment/wrangler.toml.local
+cloudflare-deployment/.wrangler/
+cloudflare-deployment/dist/
+wrangler.toml.local
+*.account_id
+*.database_id
+*.kv_id
+
+# CloudFlare Deployment Files
+cloudflare-deployment/node_modules/
+cloudflare-deployment/sql/chunks/
+cloudflare-deployment/sql/data_*.sql
+cloudflare-deployment/*.log
+cloudflare-deployment/test-*.html
+
 # Database
 *.db
 *.sqlite
@@ -128,11 +147,23 @@ nul
 player_stats/progress/*.json
 daily_lineups/progress/*.json
 
-# Project Specific Test Files
+# Project Specific Test Files  
 mapping_candidates_summary.txt
 *_test.py
 test_*.py
 debug_*.py
+debug_*.js
+*test*.js
+*.bat
+test-*.html
+
+# Player Data Files (debug/test data)
+*_data.json
+*_fixed.json
+*_current.json
+riley_greene*.json
+logan_ohoppe.json
+clayton_kershaw.json
 
 # OS Files
 .DS_Store
