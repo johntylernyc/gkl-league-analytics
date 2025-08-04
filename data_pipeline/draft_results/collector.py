@@ -789,6 +789,7 @@ class DraftResultsCollector:
             print(f"   npx wrangler d1 execute gkl-fantasy --file=./{relative_draft_path} --remote")
             
             print("\n[!] IMPORTANT: Import job_logs FIRST to avoid foreign key errors!")
+            print("[!] NOTE: Use the exact filenames above, not wildcards (*)")
             
             print("\n4. Verify the data in production:")
             print(f"   npx wrangler d1 execute gkl-fantasy --command=\"SELECT COUNT(*) FROM draft_results WHERE league_key = '{league_key}' AND season = {season}\" --remote")

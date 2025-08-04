@@ -18,6 +18,22 @@ The draft results pipeline collects historical draft data including:
 - Player details enrichment via batch API calls
 - Manual keeper designation support
 
+## Quick Start - Current Season (2025)
+
+```bash
+# 1. Set up Yahoo authentication (if not already done)
+python auth/test_auth.py
+
+# 2. Collect draft data for current season
+python -m data_pipeline.draft_results.collector --league_key "458.l.6966" --season 2025
+
+# 3. Follow the D1 import instructions displayed
+cd cloudflare-production
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/[exact_filename_shown_above] --remote
+```
+
+For detailed step-by-step instructions, see the [Annual Draft Collection Process](#annual-draft-collection-process) below.
+
 ## Scripts
 
 ### 1. `collector.py` - Core Collection Class
@@ -150,6 +166,22 @@ def test_real_draft_collection():
 - Correctly identifies 32 keeper players (all drafted in rounds 20-21)
 
 ## Annual Draft Collection Process
+
+### Finding Your League Key and Current Season
+
+**Current Season**: 2025 (as of August 2025)
+
+**Finding Your League Key**:
+1. Go to your Yahoo Fantasy Baseball league
+2. Look at the URL: `https://baseball.fantasysports.yahoo.com/b1/12345`
+3. Your league key is: `{game_id}.l.{league_id}`
+   - For 2025 MLB: `458.l.{your_league_id}`
+   - For 2024 MLB: `431.l.{your_league_id}`
+   - For 2023 MLB: `422.l.{your_league_id}`
+
+**Common League Keys**:
+- GKL 2025: `458.l.6966`
+- GKL 2024: `431.l.41728`
 
 ### Step 1: Test Collection on Test Database (Recommended)
 
@@ -297,9 +329,14 @@ cd cloudflare-production
 # First time only - create the table:
 npx wrangler d1 execute gkl-fantasy --file=../data_pipeline/draft_results/schema.sql --remote
 
-# Import in this order:
-npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_job_logs_*.sql --remote
-npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_results_*.sql --remote
+# Import in this order (replace timestamps with actual filenames):
+# Note: Use the exact filenames shown in the collector output, not wildcards
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_job_logs_20250805_000552.sql --remote
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_results_458.l.6966_2025_20250805_000552.sql --remote
+
+# To find the exact filenames:
+dir sql\incremental\draft*.sql   # Windows
+ls sql/incremental/draft*.sql    # Linux/Mac
 
 # Verify the import:
 npx wrangler d1 execute gkl-fantasy --command="SELECT COUNT(*) FROM draft_results WHERE league_key = '458.l.6966' AND season = 2025" --remote
@@ -362,6 +399,23 @@ done
 
 # Or use the backfill script (when available)
 python -m data_pipeline.draft_results.backfill_drafts --league_key "458.l.6966" --start 2020 --end 2025
+```
+
+### Exporting Existing Data to D1
+
+If you already have draft data in your local database and just need to export it:
+
+```bash
+# Export existing draft data without re-collecting from Yahoo
+python -c "from data_pipeline.draft_results.collector import DraftResultsCollector; c = DraftResultsCollector('production'); c.push_to_d1('458.l.6966', 2025)"
+
+# This will:
+# 1. Read existing data from league_analytics.db
+# 2. Export to sql/incremental/ directory
+# 3. Display the exact wrangler commands to run
+
+# For historical seasons
+python -c "from data_pipeline.draft_results.collector import DraftResultsCollector; c = DraftResultsCollector('production'); c.push_to_d1('431.l.41728', 2024)"
 ```
 
 ## Implementation Status
