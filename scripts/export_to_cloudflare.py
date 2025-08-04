@@ -41,47 +41,35 @@ def export_recent_data():
     
     print(f"🕐 Exporting data from job: {last_job_time}")
     
-    # First, export the job_log entries that will be referenced
+    # First, get all unique job_ids that will be referenced
     cursor.execute("""
-        SELECT DISTINCT job_id, job_type, environment, status, 
-               start_time, end_time, records_processed, records_inserted,
-               date_range_start, date_range_end, league_key, error_message, metadata
-        FROM job_log
-        WHERE job_id IN (
+        SELECT DISTINCT job_id FROM (
             SELECT DISTINCT job_id FROM league_transactions WHERE created_at >= ?
             UNION
             SELECT DISTINCT job_id FROM daily_lineups WHERE date >= date('now', '-3 days')
             UNION  
             SELECT DISTINCT job_id FROM daily_gkl_player_stats WHERE date >= date('now', '-7 days')
-        )
+        ) WHERE job_id IS NOT NULL
     """, (last_job_time,))
     
-    job_logs = cursor.fetchall()
+    job_ids = [row[0] for row in cursor.fetchall()]
     
-    if job_logs:
-        print(f"📋 Found {len(job_logs)} job log entries to sync")
+    if job_ids:
+        print(f"📋 Found {len(job_ids)} job IDs to ensure exist in D1")
         
-        # Generate SQL for job_log entries
+        # Generate SQL to ensure job_log entries exist (create minimal entries if needed)
         sql_lines = []
-        sql_lines.append("-- Job log entries export")
+        sql_lines.append("-- Ensure job_log entries exist for foreign key constraints")
         sql_lines.append(f"-- Generated: {datetime.now().isoformat()}")
         sql_lines.append("")
         
-        for job in job_logs:
-            escaped_values = []
-            for v in job:
-                if v is not None:
-                    escaped_val = str(v).replace("'", "''")
-                    escaped_values.append(f"'{escaped_val}'")
-                else:
-                    escaped_values.append('NULL')
-            values = ', '.join(escaped_values)
+        for job_id in job_ids:
+            # Create a minimal job_log entry if it doesn't exist
+            escaped_job_id = job_id.replace("'", "''")
             sql_lines.append(f"""
 INSERT OR IGNORE INTO job_log 
-(job_id, job_type, environment, status, start_time, end_time, 
- records_processed, records_inserted, date_range_start, date_range_end, 
- league_key, error_message, metadata)
-VALUES ({values});""")
+(job_id, job_type, environment, status)
+VALUES ('{escaped_job_id}', 'data_sync', 'production', 'completed');""")
         
         # Write job_log file
         job_file = export_dir / 'job_logs.sql'
