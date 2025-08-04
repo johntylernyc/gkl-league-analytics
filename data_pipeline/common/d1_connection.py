@@ -145,6 +145,7 @@ class D1Connection:
             D1ConnectionError: If connection fails
         """
         url = f"{self.base_url}{endpoint}"
+        logger.debug(f"Making D1 API request to: {url}")
         
         try:
             response = requests.post(
