@@ -1,5 +1,11 @@
 # PRD: GKL Rule Committee Module
 
+*Synced from Notion on 2025-08-03 21:44:15*
+
+*Page ID: 2441a736-211e-803f-8635-fa80f57084a3*
+
+---
+
 *Synced from Notion on 2025-08-03 15:18:11*
 
 *Page ID: 2441a736-211e-81e9-bba1-d8a0f0218360*
@@ -136,6 +142,7 @@ RULES = {
         "verification": "yahoo_na_designation"
     }
 }
+
 ```
 
 ### Data Requirements
@@ -177,6 +184,7 @@ CREATE TABLE enforcement_actions (
     action_date TIMESTAMP,
     notes TEXT
 );
+
 ```
 
 ### Performance Requirements
@@ -240,7 +248,6 @@ Complete interactive mockups are available showing the following views:
 - **Checks**:
 
 - **Alert**: Any violation found
-
 
 **$0 Keeper Rule (Rule 8d)**:
 
@@ -396,6 +403,7 @@ Complete interactive mockups are available showing the following views:
   "notification_sent": true,
   "grace_period_expires": "2025-08-04T10:15:00Z"
 }
+
 ```
 
 ### B. Keeper Validation Logic
@@ -403,16 +411,16 @@ Complete interactive mockups are available showing the following views:
 ```python
 def validate_keeper_declaration(keeper_list, team_id, season):
     violations = []
-    
+
     # Check max 3 keepers
     if len(keeper_list) > 3:
         violations.append("Exceeds 3 keeper limit")
-    
+
     # Check pitcher/hitter balance
     positions = [k['position'] for k in keeper_list]
     if positions.count('P') == 3 or positions.count('H') == 3:
         violations.append("Cannot keep 3 of same type")
-    
+
     # Validate costs
     for keeper in keeper_list:
         if keeper['cost'] == 0:
@@ -424,8 +432,9 @@ def validate_keeper_declaration(keeper_list, team_id, season):
             expected = get_previous_cost(keeper['player_id']) + 10
             if keeper['cost'] != expected:
                 violations.append(f"{keeper['name']} cost should be ${expected}")
-    
+
     return violations
+
 ```
 
 ### C. Commissioner Dashboard Mockup
@@ -435,7 +444,7 @@ def validate_keeper_declaration(keeper_list, team_id, season):
 |     GKL Rule Committee           |
 +----------------------------------+
 | Active Violations: 3             |
-|                                  |   
+|                                  |
 | [!] Trout Fishing                |
 |     Invalid NA Roster Player     |
 |     M. Betts has MLB experience  |
@@ -446,6 +455,7 @@ def validate_keeper_declaration(keeper_list, team_id, season):
 |     3 pitchers selected          |
 |     [Investigate] [Dismiss]      |
 +----------------------------------+
+
 ```
 
 ### D. Visual Design Mockups
@@ -486,14 +496,14 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: #f5f5f7;
             color: #1d1d1f;
             line-height: 1.5;
         }
-        
+
         /* Navigation styles matching current app */
         .nav-container {
             background: white;
@@ -502,7 +512,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             top: 0;
             z-index: 100;
         }
-        
+
         .nav-inner {
             max-width: 1280px;
             margin: 0 auto;
@@ -512,24 +522,24 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             align-items: center;
             height: 64px;
         }
-        
+
         .nav-left {
             display: flex;
             align-items: center;
             gap: 3rem;
         }
-        
+
         .nav-title {
             font-size: 1.25rem;
             font-weight: 600;
             color: #1d1d1f;
         }
-        
+
         .nav-links {
             display: flex;
             gap: 0;
         }
-        
+
         .nav-link {
             padding: 0.75rem 1.5rem;
             color: #6b7280;
@@ -538,28 +548,28 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             transition: all 0.2s;
             font-size: 0.875rem;
         }
-        
+
         .nav-link:hover {
             color: #374151;
         }
-        
+
         .nav-link.active {
             color: #3b82f6;
             border-bottom-color: #3b82f6;
         }
-        
+
         .nav-right {
             color: #6b7280;
             font-size: 0.875rem;
         }
-        
+
         /* Container styles */
         .main-container {
             max-width: 1280px;
             margin: 0 auto;
             padding: 2rem 1rem;
         }
-        
+
         /* Card styles matching current design */
         .card {
             background: white;
@@ -567,18 +577,18 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-        
+
         .card-header {
             padding: 1rem 1.5rem;
             border-bottom: 1px solid #e5e7eb;
             font-weight: 600;
             font-size: 1.125rem;
         }
-        
+
         .card-body {
             padding: 1.5rem;
         }
-        
+
         /* Stats card matching current design */
         .stat-card {
             background: white;
@@ -587,19 +597,19 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             text-align: center;
         }
-        
+
         .stat-value {
             font-size: 2.5rem;
             font-weight: 600;
             line-height: 1;
             margin-bottom: 0.5rem;
         }
-        
+
         .stat-label {
             color: #6b7280;
             font-size: 0.875rem;
         }
-        
+
         /* Button styles */
         .btn {
             padding: 0.5rem 1rem;
@@ -612,58 +622,58 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .btn-primary {
             background-color: #3b82f6;
             color: white;
         }
-        
+
         .btn-primary:hover {
             background-color: #2563eb;
         }
-        
+
         .btn-secondary {
             background: white;
             color: #374151;
             border: 1px solid #d1d5db;
         }
-        
+
         .btn-secondary:hover {
             background-color: #f9fafb;
         }
-        
+
         .btn-danger {
             background-color: #dc2626;
             color: white;
         }
-        
+
         .btn-danger:hover {
             background-color: #b91c1c;
         }
-        
+
         .btn-warning {
             background-color: #f59e0b;
             color: white;
         }
-        
+
         .btn-warning:hover {
             background-color: #d97706;
         }
-        
+
         /* Table styles */
         .table-container {
             overflow-x: auto;
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         thead {
             background-color: #f9fafb;
         }
-        
+
         th {
             text-align: left;
             padding: 0.75rem 1.5rem;
@@ -673,17 +683,17 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             color: #6b7280;
             border-bottom: 1px solid #e5e7eb;
         }
-        
+
         td {
             padding: 1rem 1.5rem;
             font-size: 0.875rem;
             border-bottom: 1px solid #e5e7eb;
         }
-        
+
         tr:hover {
             background-color: #f9fafb;
         }
-        
+
         /* Badge styles */
         .badge {
             display: inline-flex;
@@ -693,37 +703,37 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             font-size: 0.75rem;
             font-weight: 500;
         }
-        
+
         .badge-red {
             background-color: #fee2e2;
             color: #dc2626;
         }
-        
+
         .badge-orange {
             background-color: #fed7aa;
             color: #ea580c;
         }
-        
+
         .badge-yellow {
             background-color: #fef3c7;
             color: #f59e0b;
         }
-        
+
         .badge-green {
             background-color: #d1fae5;
             color: #059669;
         }
-        
+
         .badge-blue {
             background-color: #dbeafe;
             color: #3b82f6;
         }
-        
+
         .badge-gray {
             background-color: #f3f4f6;
             color: #6b7280;
         }
-        
+
         /* Alert styles */
         .alert {
             padding: 1rem;
@@ -731,30 +741,30 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             border: 1px solid;
             margin-bottom: 1.5rem;
         }
-        
+
         .alert-danger {
             background-color: #fef2f2;
             border-color: #fecaca;
             color: #dc2626;
         }
-        
+
         .alert-warning {
             background-color: #fffbeb;
             border-color: #fde68a;
             color: #d97706;
         }
-        
+
         .alert-info {
             background-color: #eff6ff;
             border-color: #bfdbfe;
             color: #2563eb;
         }
-        
+
         /* Form styles */
         .form-group {
             margin-bottom: 1rem;
         }
-        
+
         .form-label {
             display: block;
             font-size: 0.875rem;
@@ -762,7 +772,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             color: #374151;
             margin-bottom: 0.5rem;
         }
-        
+
         .form-input,
         .form-select,
         .form-textarea {
@@ -773,7 +783,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             font-size: 0.875rem;
             transition: border-color 0.2s;
         }
-        
+
         .form-input:focus,
         .form-select:focus,
         .form-textarea:focus {
@@ -781,51 +791,51 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
-        
+
         /* Grid utilities */
         .grid {
             display: grid;
             gap: 1rem;
         }
-        
+
         .grid-cols-1 {
             grid-template-columns: repeat(1, 1fr);
         }
-        
+
         .grid-cols-2 {
             grid-template-columns: repeat(2, 1fr);
         }
-        
+
         .grid-cols-3 {
             grid-template-columns: repeat(3, 1fr);
         }
-        
+
         .grid-cols-4 {
             grid-template-columns: repeat(4, 1fr);
         }
-        
+
         /* Utility classes */
         .mb-2 { margin-bottom: 0.5rem; }
         .mb-4 { margin-bottom: 1rem; }
         .mb-6 { margin-bottom: 1.5rem; }
         .mb-8 { margin-bottom: 2rem; }
-        
+
         .text-sm { font-size: 0.875rem; }
         .text-base { font-size: 1rem; }
         .text-lg { font-size: 1.125rem; }
         .text-xl { font-size: 1.25rem; }
         .text-2xl { font-size: 1.5rem; }
         .text-3xl { font-size: 1.875rem; }
-        
+
         .font-medium { font-weight: 500; }
         .font-semibold { font-weight: 600; }
         .font-bold { font-weight: 700; }
-        
+
         .text-gray-500 { color: #6b7280; }
         .text-gray-600 { color: #4b5563; }
         .text-gray-700 { color: #374151; }
         .text-gray-900 { color: #111827; }
-        
+
         /* Mockup frame */
         .mockup-section {
             margin-bottom: 3rem;
@@ -834,7 +844,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
         }
-        
+
         .mockup-header {
             background: #2c3e50;
             color: white;
@@ -842,7 +852,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             font-size: 0.875rem;
             font-weight: 500;
         }
-        
+
         /* Responsive */
         @media (max-width: 768px) {
             .grid-cols-2,
@@ -850,7 +860,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             .grid-cols-4 {
                 grid-template-columns: 1fr;
             }
-            
+
             .nav-links {
                 display: none;
             }
@@ -861,7 +871,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
     <!-- Mockup 1: Commissioner Dashboard -->
     <div class="mockup-section">
         <div class="mockup-header">GKL Rule Committee - Commissioner Dashboard</div>
-        
+
         <!-- Navigation -->
         <nav class="nav-container">
             <div class="nav-inner">
@@ -879,7 +889,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <div class="nav-right">Fantasy Baseball Analytics</div>
             </div>
         </nav>
-        
+
         <!-- Main Content -->
         <div class="main-container">
             <!-- Page Header -->
@@ -887,7 +897,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <h1 class="text-3xl font-bold mb-2">Rule Committee</h1>
                 <p class="text-gray-600">Monitor and enforce custom GKL league rules</p>
             </div>
-            
+
             <!-- Commissioner Alert -->
             <div class="alert alert-danger">
                 <div style="display: flex; align-items: start; gap: 0.75rem;">
@@ -900,7 +910,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     </div>
                 </div>
             </div>
-            
+
             <!-- Stats Grid -->
             <div class="grid grid-cols-4 mb-8">
                 <div class="stat-card">
@@ -920,14 +930,14 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     <div class="stat-label">Compliance Rate</div>
                 </div>
             </div>
-            
+
             <!-- Main Content Grid -->
             <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
                 <!-- Active Violations -->
                 <div class="card">
                     <div class="card-header">Active Violations</div>
                     <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
-                        
+
                         <!-- Violation 1: NA Roster -->
                         <div style="border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; background-color: #fef2f2;">
                             <div style="display: flex; justify-content: space-between;">
@@ -946,7 +956,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Violation 2: Keeper Declaration -->
                         <div style="border: 1px solid #fed7aa; border-radius: 8px; padding: 1rem; background-color: #fff7ed;">
                             <div style="display: flex; justify-content: space-between;">
@@ -965,7 +975,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Violation 3: $0 Keeper -->
                         <div style="border: 1px solid #fef3c7; border-radius: 8px; padding: 1rem; background-color: #fffbeb;">
                             <div style="display: flex; justify-content: space-between;">
@@ -986,7 +996,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Sidebar -->
                 <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                     <!-- Quick Actions -->
@@ -999,7 +1009,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                             <button class="btn btn-secondary" style="width: 100%;">Team Compliance</button>
                         </div>
                     </div>
-                    
+
                     <!-- Top Violators -->
                     <div class="card">
                         <div class="card-header">Season Violations by Team</div>
@@ -1032,11 +1042,11 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             </div>
         </div>
     </div>
-    
+
     <!-- Mockup 2: Investigation View -->
     <div class="mockup-section">
         <div class="mockup-header">GKL Rule Committee - Investigation View</div>
-        
+
         <!-- Navigation (same as above) -->
         <nav class="nav-container">
             <div class="nav-inner">
@@ -1054,7 +1064,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <div class="nav-right">Fantasy Baseball Analytics</div>
             </div>
         </nav>
-        
+
         <!-- Main Content -->
         <div class="main-container">
             <!-- Breadcrumb -->
@@ -1065,7 +1075,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     <li style="color: #6b7280;">Investigation</li>
                 </ol>
             </nav>
-            
+
             <!-- Investigation Header -->
             <div class="card mb-6" style="background-color: #fef2f2;">
                 <div class="card-body">
@@ -1078,7 +1088,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     </div>
                 </div>
             </div>
-            
+
             <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
                 <!-- Left Column -->
                 <div style="display: flex; flex-direction: column; gap: 1.5rem;">
@@ -1110,7 +1120,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                             </dl>
                         </div>
                     </div>
-                    
+
                     <!-- Player History -->
                     <div class="card">
                         <div class="card-header">Player History - Mookie Betts</div>
@@ -1148,7 +1158,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Right Column -->
                 <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                     <!-- Commissioner Actions -->
@@ -1166,7 +1176,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                                         <option>Defer - Need More Information</option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label class="form-label">Enforcement Action</label>
                                     <select class="form-select">
@@ -1177,12 +1187,12 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                                         <option>No Action Required</option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label class="form-label">Commissioner Notes</label>
                                     <textarea class="form-textarea" rows="4" placeholder="Document your decision reasoning..."></textarea>
                                 </div>
-                                
+
                                 <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
                                     <button type="button" class="btn btn-primary">Submit Decision</button>
                                     <button type="button" class="btn btn-secondary">Save as Draft</button>
@@ -1190,7 +1200,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                             </form>
                         </div>
                     </div>
-                    
+
                     <!-- Team History -->
                     <div class="card">
                         <div class="card-header">Team Violation History</div>
@@ -1219,11 +1229,11 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             </div>
         </div>
     </div>
-    
+
     <!-- Mockup 3: Rules Reference -->
     <div class="mockup-section">
         <div class="mockup-header">GKL Rule Committee - Rules Reference</div>
-        
+
         <!-- Navigation (same) -->
         <nav class="nav-container">
             <div class="nav-inner">
@@ -1241,7 +1251,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <div class="nav-right">Fantasy Baseball Analytics</div>
             </div>
         </nav>
-        
+
         <!-- Main Content -->
         <div class="main-container">
             <!-- Page Header -->
@@ -1249,7 +1259,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <h1 class="text-3xl font-bold mb-2">GKL Custom Rules Reference</h1>
                 <p class="text-gray-600">Complete documentation of all custom league rules and enforcement guidelines</p>
             </div>
-            
+
             <!-- Search -->
             <div class="mb-6">
                 <div style="max-width: 32rem;">
@@ -1259,7 +1269,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     </svg>
                 </div>
             </div>
-            
+
             <!-- Rules Grid -->
             <div class="grid grid-cols-2" style="gap: 1.5rem;">
                 <!-- Rule 4: NA Roster -->
@@ -1291,7 +1301,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Rule 8: Keepers -->
                 <div class="card">
                     <div class="card-header" style="background-color: #f9fafb;">
@@ -1322,7 +1332,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Rule 7: Trade Vetoes -->
                 <div class="card">
                     <div class="card-header" style="background-color: #f9fafb;">
@@ -1353,7 +1363,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Rule 8d: $0 Keepers -->
                 <div class="card">
                     <div class="card-header" style="background-color: #f9fafb;">
@@ -1386,11 +1396,11 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             </div>
         </div>
     </div>
-    
+
     <!-- Mockup 4: Manager Compliance View -->
     <div class="mockup-section">
         <div class="mockup-header">GKL Rule Committee - Manager Compliance View</div>
-        
+
         <!-- Navigation (same) -->
         <nav class="nav-container">
             <div class="nav-inner">
@@ -1408,7 +1418,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <div class="nav-right">Fantasy Baseball Analytics</div>
             </div>
         </nav>
-        
+
         <!-- Main Content -->
         <div class="main-container">
             <!-- Page Header -->
@@ -1416,7 +1426,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <h1 class="text-3xl font-bold mb-2">My Compliance Status</h1>
                 <p class="text-gray-600">Track your rule compliance and avoid violations</p>
             </div>
-            
+
             <!-- Compliance Score Card -->
             <div class="card mb-6">
                 <div class="card-body">
@@ -1437,7 +1447,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     </div>
                 </div>
             </div>
-            
+
             <!-- Current Status Grid -->
             <div class="grid grid-cols-3 mb-6" style="gap: 1rem;">
                 <div class="stat-card">
@@ -1445,20 +1455,20 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     <div class="stat-label">NA Roster Status</div>
                     <div class="text-sm font-medium" style="margin-top: 0.25rem;">Compliant</div>
                 </div>
-                
+
                 <div class="stat-card">
                     <div class="stat-value" style="color: #3b82f6; font-size: 2rem;">42</div>
                     <div class="stat-label">Days to Keeper Deadline</div>
                     <div class="text-sm font-medium" style="margin-top: 0.25rem;">Feb 15, 2026</div>
                 </div>
-                
+
                 <div class="stat-card">
                     <div class="stat-value" style="color: #6b7280; font-size: 2rem;">3</div>
                     <div class="stat-label">Keeper Slots Available</div>
                     <div class="text-sm font-medium" style="margin-top: 0.25rem;">0 declared</div>
                 </div>
             </div>
-            
+
             <!-- Violation History -->
             <div class="card">
                 <div class="card-header">My Violation History</div>
@@ -1491,11 +1501,11 @@ The complete visual design system for the GKL Rule Committee module includes fiv
             </div>
         </div>
     </div>
-    
+
     <!-- Mockup 5: Violation History & Analytics -->
     <div class="mockup-section">
         <div class="mockup-header">GKL Rule Committee - Violation History & Analytics</div>
-        
+
         <!-- Navigation (same) -->
         <nav class="nav-container">
             <div class="nav-inner">
@@ -1513,7 +1523,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <div class="nav-right">Fantasy Baseball Analytics</div>
             </div>
         </nav>
-        
+
         <!-- Main Content -->
         <div class="main-container">
             <!-- Page Header -->
@@ -1521,7 +1531,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                 <h1 class="text-3xl font-bold mb-2">Violation History & Analytics</h1>
                 <p class="text-gray-600">Complete record of all rule violations and enforcement actions</p>
             </div>
-            
+
             <!-- Filters -->
             <div class="card mb-6">
                 <div class="card-body">
@@ -1565,7 +1575,7 @@ The complete visual design system for the GKL Rule Committee module includes fiv
                     </div>
                 </div>
             </div>
-            
+
             <!-- Violations Table -->
             <div class="card">
                 <div class="card-header">
@@ -1632,4 +1642,5 @@ The complete visual design system for the GKL Rule Committee module includes fiv
     </div>
 </body>
 </html>
+
 ```

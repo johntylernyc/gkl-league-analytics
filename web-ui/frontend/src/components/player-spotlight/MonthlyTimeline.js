@@ -244,6 +244,14 @@ const MonthlyTimeline = ({ monthlyData, season, playerName }) => {
   };
 
   const formatMonthYear = (monthData) => {
+    // Handle month_year format like "2025-07"
+    if (monthData.month_year) {
+      const [year, month] = monthData.month_year.split('-');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
+    }
+    // Fallback to original format
     return `${monthData.month} ${monthData.year}`;
   };
 

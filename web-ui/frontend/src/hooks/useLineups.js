@@ -59,13 +59,16 @@ export const useLineups = () => {
       
       try {
         const [lineupsData, summaryData] = await Promise.all([
-          selectedTeam 
-            ? apiService.getTeamLineup(selectedDate, selectedTeam)
-            : apiService.getLineupsByDate(selectedDate),
+          apiService.getLineupsByDate(selectedDate),
           apiService.getLineupSummary(selectedDate)
         ]);
         
-        setLineups(selectedTeam ? [lineupsData] : lineupsData);
+        // Filter lineups by selected team if one is selected
+        const filteredLineups = selectedTeam 
+          ? lineupsData.filter(lineup => lineup.team_key === selectedTeam)
+          : lineupsData;
+        
+        setLineups(filteredLineups);
         setSummary(summaryData);
       } catch (err) {
         console.error('Failed to fetch lineups:', err);

@@ -237,11 +237,26 @@ const PerformanceBreakdown = ({ playerId, playerName, season }) => {
               
               if (!data || data.days === 0) return null;
 
-              return (
-                <tr key={usageType}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+              const isOtherRoster = usageType === 'other_roster';
+              const hasMultipleTeams = isOtherRoster && data.teams && data.teams.length > 1;
+              const isExpanded = expandedRows.has(usageType);
+
+              const rows = [];
+              
+              // Main row
+              rows.push(
+                <tr key={usageType} className={isOtherRoster && hasMultipleTeams ? 'cursor-pointer hover:bg-gray-50' : ''}>
+                  <td className="px-6 py-4 whitespace-nowrap" onClick={hasMultipleTeams ? () => toggleRowExpansion(usageType) : undefined}>
                     <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getUsageColor(usageType)}`}>
+                      {hasMultipleTeams && (
+                        <svg className={`w-3 h-3 mr-1 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
                       {getUsageTitle(usageType)}
+                      {hasMultipleTeams && (
+                        <span className="ml-1 text-xs opacity-75">({data.teams.length} teams)</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -254,7 +269,36 @@ const PerformanceBreakdown = ({ playerId, playerName, season }) => {
                   ))}
                 </tr>
               );
-            })}
+
+              // Expanded team rows for other_roster
+              if (isOtherRoster && hasMultipleTeams && isExpanded) {
+                data.teams.forEach((team, index) => {
+                  const teamStats = statConfig.type === 'pitching' ? team.stats.pitching : team.stats.batting;
+                  rows.push(
+                    <tr key={`${usageType}-team-${index}`} className="bg-purple-25">
+                      <td className="px-6 py-4 whitespace-nowrap pl-12">
+                        <div className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-purple-600 bg-purple-100">
+                          {team.team_name}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {team.from_date} to {team.to_date}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        <span className="font-medium">{team.days}</span>
+                      </td>
+                      {statConfig.stats.map(stat => (
+                        <td key={stat} className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {teamStats ? formatStatValue(stat, teamStats[stat]) : '-'}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                });
+              }
+
+              return rows;
+            }).flat()}
           </tbody>
         </table>
       </div>

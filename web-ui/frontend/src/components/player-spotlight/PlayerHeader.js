@@ -118,7 +118,7 @@ const PlayerHeader = ({
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <span className="text-sm text-gray-500 mr-2">Team History in {currentSeason}:</span>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {player.team_history.map((team, index) => (
+                  {player.team_history.slice().reverse().map((team, index) => (
                     <div
                       key={index}
                       className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${

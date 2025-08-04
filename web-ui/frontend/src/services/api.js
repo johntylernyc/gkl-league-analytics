@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://gkl-fantasy-api.services-403.workers.dev';
 
 class ApiService {
   async request(endpoint, options = {}) {
@@ -27,30 +27,30 @@ class ApiService {
   // Transaction methods
   async getTransactions(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    const endpoint = `/api/transactions${queryString ? `?${queryString}` : ''}`;
+    const endpoint = `/transactions${queryString ? `?${queryString}` : ''}`;
     return this.request(endpoint);
   }
 
   async getTransactionStats() {
-    return this.request('/api/transactions/stats');
+    return this.request('/transactions/stats');
   }
 
   async getTransactionFilters() {
-    return this.request('/api/transactions/filters');
+    return this.request('/transactions/filters');
   }
 
   async searchPlayers(query) {
     const queryString = new URLSearchParams({ q: query }).toString();
-    return this.request(`/api/transactions/players/search?${queryString}`);
+    return this.request(`/transactions/players/search?${queryString}`);
   }
 
   // Analytics methods
   async getAnalyticsSummary() {
-    return this.request('/api/analytics/summary');
+    return this.request('/analytics/summary');
   }
 
   async getManagerAnalytics() {
-    return this.request('/api/analytics/managers');
+    return this.request('/analytics/managers');
   }
 
   // Health check
@@ -60,83 +60,85 @@ class ApiService {
 
   // Lineup methods
   async getLineupDates() {
-    return this.request('/api/lineups/dates');
+    return this.request('/lineups/dates');
   }
 
   async getTeams() {
-    return this.request('/api/lineups/teams');
+    return this.request('/lineups/teams');
   }
 
   async getLineupsByDate(date) {
-    return this.request(`/api/lineups/date/${date}`);
+    return this.request(`/lineups/date/${date}`);
   }
 
-  async getTeamLineup(date, teamKey) {
-    return this.request(`/api/lineups/date/${date}/team/${teamKey}`);
-  }
 
   async getPlayerHistory(playerId, startDate, endDate) {
     const params = {};
     if (startDate) params.startDate = startDate;
     if (endDate) params.endDate = endDate;
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/lineups/player/${playerId}${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/lineups/player/${playerId}${queryString ? `?${queryString}` : ''}`);
   }
 
   async getLineupSummary(date) {
-    return this.request(`/api/lineups/summary/${date}`);
+    return this.request(`/lineups/summary/${date}`);
   }
 
   async searchLineupPlayers(query) {
     const queryString = new URLSearchParams({ q: query }).toString();
-    return this.request(`/api/lineups/search?${queryString}`);
+    return this.request(`/lineups/search?${queryString}`);
   }
 
   // Player Spotlight methods
   async getPlayerSpotlight(playerId, season = 2025) {
     const params = { season };
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/players/${playerId}/spotlight?${queryString}`);
+    return this.request(`/players/${playerId}/spotlight?${queryString}`);
   }
 
   async getPlayerTimeline(playerId, season = 2025, granularity = 'day') {
     const params = { season, granularity };
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/players/${playerId}/timeline?${queryString}`);
+    return this.request(`/players/${playerId}/timeline?${queryString}`);
   }
 
   async getPlayerSeasons(playerId) {
-    return this.request(`/api/players/${playerId}/seasons`);
+    return this.request(`/players/${playerId}/seasons`);
   }
 
   async searchSpotlightPlayers(query) {
     const params = { q: query };
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/players/search?${queryString}`);
+    return this.request(`/players/search?${queryString}`);
   }
 
   async getPlayerPerformanceBreakdown(playerId, season = 2025) {
     const params = { season };
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/players/${playerId}/performance-breakdown?${queryString}`);
+    return this.request(`/players/${playerId}/performance-breakdown?${queryString}`);
   }
 
   // Player Explorer endpoints
-  async searchPlayers(params = {}) {
+  async searchPlayersExplorer(params = {}) {
     const queryString = new URLSearchParams(params).toString();
-    return this.request(`/api/player-search/search?${queryString}`);
+    return this.request(`/player-search/search?${queryString}`);
+  }
+  
+  // Alias for backward compatibility
+  async searchPlayers(params = {}) {
+    return this.searchPlayersExplorer(params);
   }
 
   async getPositions() {
-    return this.request('/api/player-search/positions');
+    return this.request('/player-search/positions');
   }
 
   async getMlbTeams() {
-    return this.request('/api/player-search/teams');
+    return this.request('/player-search/teams');
   }
 
   async getGklTeams() {
-    return this.request('/api/player-search/gkl-teams');
+    return this.request('/player-search/gkl-teams');
   }
 }
 

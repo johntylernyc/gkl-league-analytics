@@ -148,7 +148,7 @@ const UsageSummaryCards = ({ usageBreakdown, monthlyData, season }) => {
     <div>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Season Usage Summary
+          Usage Summary
         </h2>
         <p className="text-gray-600">
           Analysis of {total_days} total days in {season} season
@@ -161,8 +161,9 @@ const UsageSummaryCards = ({ usageBreakdown, monthlyData, season }) => {
           // Handle backward compatibility for old 'not_owned' key
           const actualData = type.key === 'not_rostered' && !data.days && breakdown.not_owned ? 
             breakdown.not_owned : data;
-          const percentage = actualData.percentage || 0;
           const days = actualData.days || 0;
+          // Calculate percentage if not provided (for performance breakdown API compatibility)
+          const percentage = actualData.percentage || (total_days > 0 ? (days / total_days) * 100 : 0);
           
           // Calculate IL insights for injured list cards
           const ilInsights = type.key === 'injured_list' ? calculateILInsights(actualData, total_days) : null;
@@ -196,32 +197,39 @@ const UsageSummaryCards = ({ usageBreakdown, monthlyData, season }) => {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Teams:</p>
                     <div className="space-y-1">
-                      {actualData.teams.map((team, index) => (
-                        <div 
-                          key={index} 
-                          className="bg-white bg-opacity-60 rounded px-2 py-1 cursor-help relative group"
-                          title={`${team.name}: ${team.days} days (${team.percentage.toFixed(1)}% of season)`}
-                        >
-                          <div className="text-xs font-medium text-purple-700 truncate">
-                            {team.name}
-                          </div>
-                          <div className="text-xs text-purple-600">
-                            {team.days} days ({team.percentage.toFixed(0)}%)
-                          </div>
-                          
-                          {/* Enhanced tooltip on hover */}
-                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
-                            <div className="bg-gray-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap">
-                              <div className="font-semibold">{team.name}</div>
-                              <div>{team.days} days ({team.percentage.toFixed(1)}% of season)</div>
-                              <div className="mt-1 text-gray-300">
-                                {((team.days / total_days) * 100).toFixed(1)}% of total tracked days
+                      {actualData.teams.map((team, index) => {
+                        // Handle both string and object formats for backward compatibility
+                        const teamName = typeof team === 'string' ? team : team.name;
+                        const teamDays = typeof team === 'object' ? team.days : 0;
+                        const teamPercentage = typeof team === 'object' && team.percentage !== undefined ? team.percentage : 0;
+                        
+                        return (
+                          <div 
+                            key={index} 
+                            className="bg-white bg-opacity-60 rounded px-2 py-1 cursor-help relative group"
+                            title={`${teamName}: ${teamDays} days (${teamPercentage.toFixed(1)}% of season)`}
+                          >
+                            <div className="text-xs font-medium text-purple-700 truncate">
+                              {teamName}
+                            </div>
+                            <div className="text-xs text-purple-600">
+                              {teamDays} days ({teamPercentage.toFixed(0)}%)
+                            </div>
+                            
+                            {/* Enhanced tooltip on hover */}
+                            <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                              <div className="bg-gray-900 text-white text-xs rounded py-2 px-3 whitespace-nowrap">
+                                <div className="font-semibold">{teamName}</div>
+                                <div>{teamDays} days ({teamPercentage.toFixed(1)}% of season)</div>
+                                <div className="mt-1 text-gray-300">
+                                  {teamDays > 0 ? ((teamDays / total_days) * 100).toFixed(1) : 0}% of total tracked days
+                                </div>
+                                <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                               </div>
-                              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
