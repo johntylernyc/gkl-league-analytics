@@ -104,22 +104,24 @@ Captures annual draft data including picks, costs, and keeper designations.
   - Automatic draft type detection (snake vs auction)
   - Player name enrichment via batch API calls
   - Keeper detection for auction drafts (rounds 20-21)
-  - Direct-to-production D1 push capability
+  - D1 export using sync_to_production pattern
   - Command-line parameters for any league/season
 
-**Key Features (August 2025):**
-- Once-per-season collection (not daily)
-- Manual keeper designation process
-- Comprehensive job logging
-- Rate-limited API interactions
-- Foreign key dependency management
+**Key Design Decisions (August 2025):**
+- **Manual Annual Process**: Run once per season after draft completes
+- **No Automation**: Unlike transactions/lineups, drafts don't need daily updates
+- **Manual Keeper Updates**: Keeper designation requires post-collection SQL
+- **Test-First Approach**: Always test on league_analytics_test.db before production
+- **Sync Pattern**: Uses established sync_to_production.py export methodology
 
 **Data Flow:**
 1. Query Yahoo API for league settings (draft type)
 2. Fetch draft results with pick order
 3. Enrich player data with names via batch API
-4. Store in database with job tracking
-5. Export to D1 using sync_to_production pattern
+4. Store in test database first for validation
+5. Run on production database after verification
+6. Export to D1 using collector's push_to_d1() method
+7. Manually update keeper status via SQL
 
 #### 2.4 Player Statistics Integration (`player_stats/`)
 
@@ -227,10 +229,12 @@ The `sync_to_production.py` script automatically:
 5. Generate import commands in dependency order
 
 # Draft results use dedicated export in collector.py
-1. Export draft data for specific league/season
-2. Extract job_ids and export job_log entries
-3. Generate D1 import commands
-4. Follow sync_to_production pattern
+1. Annual manual process (not automated)
+2. Test on league_analytics_test.db first
+3. Export draft data for specific league/season
+4. Extract job_ids and export job_log entries
+5. Generate D1 import commands to sql/incremental/
+6. Manual execution following sync_to_production pattern
 ```
 
 ### Import Order Requirements
