@@ -95,7 +95,33 @@ Captures daily roster decisions for all teams through two specialized scripts.
 4. Store in database with unique constraints
 5. Handle 18 teams × ~25 players = ~450 records per day
 
-#### 2.3 Player Statistics Integration (`player_stats/`)
+#### 2.3 Draft Results Collection (`draft_results/`)
+
+Captures annual draft data including picks, costs, and keeper designations.
+
+**Core Scripts:**
+- **`collector.py`**: Main collection module with CLI interface
+  - Automatic draft type detection (snake vs auction)
+  - Player name enrichment via batch API calls
+  - Keeper detection for auction drafts (rounds 20-21)
+  - Direct-to-production D1 push capability
+  - Command-line parameters for any league/season
+
+**Key Features (August 2025):**
+- Once-per-season collection (not daily)
+- Manual keeper designation process
+- Comprehensive job logging
+- Rate-limited API interactions
+- Foreign key dependency management
+
+**Data Flow:**
+1. Query Yahoo API for league settings (draft type)
+2. Fetch draft results with pick order
+3. Enrich player data with names via batch API
+4. Store in database with job tracking
+5. Export to D1 using sync_to_production pattern
+
+#### 2.4 Player Statistics Integration (`player_stats/`)
 
 Integrates Yahoo player data with MLB statistics.
 
@@ -181,6 +207,7 @@ The pipeline follows a unidirectional flow from local collection to production d
 2. **transactions** (independent table)
 3. **daily_lineups** (references job_log.job_id)
 4. **daily_gkl_player_stats** (references job_log.job_id)
+5. **draft_results** (references job_log.job_id)
 
 The `sync_to_production.py` script automatically:
 - Extracts all referenced job_ids from data exports
@@ -198,6 +225,12 @@ The `sync_to_production.py` script automatically:
 3. Extract all job_ids referenced in exports
 4. Export corresponding job_log entries
 5. Generate import commands in dependency order
+
+# Draft results use dedicated export in collector.py
+1. Export draft data for specific league/season
+2. Extract job_ids and export job_log entries
+3. Generate D1 import commands
+4. Follow sync_to_production pattern
 ```
 
 ### Import Order Requirements

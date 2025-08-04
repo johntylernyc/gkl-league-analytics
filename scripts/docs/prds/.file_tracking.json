@@ -2,23 +2,23 @@
   "files": {
     "gkl-league-analytics.md": {
       "path": "docs\\prds\\gkl-league-analytics.md",
-      "modified_time": 1754253850.0053763,
-      "size": 481,
-      "content_hash": "123f0810d44896219c570eb80900fcde5a70d5ffabd7c0fef252cbdec9c845c8",
+      "modified_time": 1754344883.370252,
+      "size": 592,
+      "content_hash": "34ce92701296925100b162a9528b1bf3d92b6330f853fd8c6ba961d22c2391c4",
       "notion_page_id": "2431a736-211e-80fc-bb88-fe5de9652180",
-      "last_notion_modified": "2025-08-03T20:42:00+00:00"
+      "last_notion_modified": "2025-08-04T22:00:00+00:00"
     },
-    "prd-gkl-rule-committee-module.md": {
-      "path": "docs\\prds\\prd-gkl-rule-committee-module.md",
-      "modified_time": 1754253855.6771722,
-      "size": 65852,
-      "content_hash": "886df41faf898a551703bd7df17f30814ba8c64469a99aa36b07e9aa2cec691b",
-      "notion_page_id": "2441a736-211e-803f-8635-fa80f57084a3",
-      "last_notion_modified": "2025-08-03T14:19:00+00:00"
+    "prd-cloudflare-workers-deployment-guide-for-fantasy-baseball-application.md": {
+      "path": "docs\\prds\\prd-cloudflare-workers-deployment-guide-for-fantasy-baseball-application.md",
+      "modified_time": 1754344887.9325995,
+      "size": 11016,
+      "content_hash": "0973d1ec593748846987c8698e40aaedddc43b3bac8a8f39cf49c3901d5c17a9",
+      "notion_page_id": "2441a736-211e-81c1-b6b2-f8452537971e",
+      "last_notion_modified": "2025-08-03T20:42:00+00:00"
     },
     "prd-sqlite-database-stability-improvements.md": {
       "path": "docs\\prds\\prd-sqlite-database-stability-improvements.md",
-      "modified_time": 1754230693.1155887,
+      "modified_time": 1754344890.4012985,
       "size": 3966,
       "content_hash": "f382b63529b9a0d7950c54d29f979dae96335a393d3ff37453d4518a4dc62296",
       "notion_page_id": "2431a736-211e-80a8-9688-c4dcb62ac067",
@@ -26,7 +26,7 @@
     },
     "prd-daily-lineups-feature.md": {
       "path": "docs\\prds\\prd-daily-lineups-feature.md",
-      "modified_time": 1754230696.813688,
+      "modified_time": 1754344896.341476,
       "size": 25279,
       "content_hash": "6f88c55b9b8c265315c8cc80a97aa3e111e460c7549a1d1b0aa381d739c91331",
       "notion_page_id": "2431a736-211e-81a9-9b13-d36af56b4da8",
@@ -34,23 +34,31 @@
     },
     "prd-daily-player-stats-data-ingestion.md": {
       "path": "docs\\prds\\prd-daily-player-stats-data-ingestion.md",
-      "modified_time": 1754230706.6638567,
+      "modified_time": 1754344910.629698,
       "size": 8124,
       "content_hash": "7cf070f0de10e9b806165d9f7f0612cf09bb6a84702887641a55503918b87c53",
       "notion_page_id": "2441a736-211e-81b0-ac01-d9de7a715510",
       "last_notion_modified": "2025-08-03T11:45:00+00:00"
     },
-    "prd-cloudflare-workers-deployment-guide-for-fantasy-baseball-application.md": {
-      "path": "docs\\prds\\prd-cloudflare-workers-deployment-guide-for-fantasy-baseball-application.md",
-      "modified_time": 1754253851.8233805,
-      "size": 11016,
-      "content_hash": "0973d1ec593748846987c8698e40aaedddc43b3bac8a8f39cf49c3901d5c17a9",
-      "notion_page_id": "2441a736-211e-81c1-b6b2-f8452537971e",
-      "last_notion_modified": "2025-08-03T20:42:00+00:00"
+    "prd-draft-values-data-pipeline.md": {
+      "path": "docs\\prds\\prd-draft-values-data-pipeline.md",
+      "modified_time": 1754344917.0111105,
+      "size": 10863,
+      "content_hash": "2bd37b3e2a2b65c77e2a580cdc17902b2a00ed06e4a32633e413d2f5dcb582ad",
+      "notion_page_id": "2451a736-211e-8185-be72-f33a4340a1fd",
+      "last_notion_modified": "2025-08-04T22:00:00+00:00"
+    },
+    "prd-gkl-rule-committee-module.md": {
+      "path": "docs\\prds\\prd-gkl-rule-committee-module.md",
+      "modified_time": 1754344922.1219182,
+      "size": 65852,
+      "content_hash": "886df41faf898a551703bd7df17f30814ba8c64469a99aa36b07e9aa2cec691b",
+      "notion_page_id": "2441a736-211e-803f-8635-fa80f57084a3",
+      "last_notion_modified": "2025-08-03T14:19:00+00:00"
     },
     "prd-player-spotlight-improvements.md": {
       "path": "docs\\prds\\prd-player-spotlight-improvements.md",
-      "modified_time": 1754253859.184161,
+      "modified_time": 1754344926.170016,
       "size": 18603,
       "content_hash": "b53de4169bb987a5638edf04806d78c50f81c165c9f629f1a16f15edf5c52dd2",
       "notion_page_id": "2441a736-211e-80a2-9fd8-f95179010551",
@@ -58,12 +66,12 @@
     },
     "prd-github-actions-scheduled-data-refreshes.md": {
       "path": "docs\\prds\\prd-github-actions-scheduled-data-refreshes.md",
-      "modified_time": 1754341330.8376238,
+      "modified_time": 1754344931.2953987,
       "size": 15196,
       "content_hash": "b22d65a790958bc04c2b994a5adbc5cb802dd3c6f191e176ef39645cf766d3a9",
       "notion_page_id": "2451a736-211e-8194-a4fb-cb451c22d0c1",
       "last_notion_modified": "2025-08-04T20:56:00+00:00"
     }
   },
-  "last_full_sync": "2025-08-04T22:02:10.848853"
+  "last_full_sync": "2025-08-04T23:02:11.306347"
 }

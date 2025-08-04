@@ -126,6 +126,9 @@ python daily_lineups/update_lineups.py --days 7
 
 # Update player statistics
 python player_stats/incremental_update.py
+
+# Collect draft results (once per season after draft)
+python draft_results/collector.py --league_key "458.l.6966" --season 2025
 ```
 
 ### Database Synchronization
@@ -158,6 +161,12 @@ npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/transactions_*.sql 
 
 # 3. Lineups (depends on job_log)
 npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/lineups_*.sql --remote
+
+# 4. Draft results (one-time after annual draft)
+# First create table if needed:
+npx wrangler d1 execute gkl-fantasy --file=../data_pipeline/draft_results/schema.sql --remote
+# Then import data:
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_*.sql --remote
 ```
 
 **For Production Updates** (Automated):
@@ -241,6 +250,7 @@ gkl-league-analytics/
 ├── data_pipeline/           # Python data collection
 │   ├── league_transactions/ # Transaction processing
 │   ├── daily_lineups/      # Lineup collection
+│   ├── draft_results/      # Draft data collection
 │   ├── player_stats/       # Statistics integration
 │   └── common/             # Shared utilities
 ├── cloudflare-production/  # Production deployment
@@ -352,6 +362,7 @@ npx wrangler pages deploy build --project-name gkl-fantasy
 ### Current Implementation
 ✅ Transaction data collection and analysis (consolidated Aug 2025)  
 ✅ Daily lineup tracking (consolidated Aug 2025)  
+✅ Draft results collection with keeper support (Aug 2025)
 ✅ Player spotlight features  
 ✅ Manager analytics  
 ✅ Production deployment on Cloudflare  

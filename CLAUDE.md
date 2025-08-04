@@ -180,6 +180,9 @@ python daily_lineups/update_lineups.py --use-d1     # Force Cloudflare D1
 python daily_lineups/update_lineups.py --since-last
 python daily_lineups/update_lineups.py --date 2025-08-04
 
+# Draft results (once per season after draft)
+python draft_results/collector.py --league_key "458.l.6966" --season 2025
+
 # Player statistics (when implemented)
 python player_stats/incremental_update.py
 ```
@@ -213,6 +216,12 @@ cd cloudflare-production
 npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/job_logs_*.sql --remote    # FIRST
 npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/transactions_*.sql --remote # SECOND
 npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/lineups_*.sql --remote      # THIRD
+
+# For draft results (once per season):
+# Create table if first time:
+npx wrangler d1 execute gkl-fantasy --file=../data_pipeline/draft_results/schema.sql --remote
+# Import draft data:
+npx wrangler d1 execute gkl-fantasy --file=./sql/incremental/draft_*.sql --remote
 ```
 
 #### Automated Production Updates (GitHub Actions)
@@ -260,11 +269,19 @@ Both `league_transactions` and `daily_lineups` modules have been consolidated:
   - `update_*.py` - Incremental updates for automation
   - `data_quality_check.py` - Comprehensive validation
 
+### Draft Results Pipeline (New)
+Added `draft_results` module for annual draft data collection:
+- **One-time collection**: Runs once per season after draft completes
+- **Features**: Automatic draft type detection, player enrichment, keeper support
+- **D1 Integration**: Uses sync_to_production pattern for manual push
+- **Manual Process**: Keeper designation requires post-collection SQL updates
+
 ### Key Fixes
 - League key for 2025: `458.l.6966` (not 449 or mlb prefixes)
 - Complete data extraction for all add/drop transaction movements
 - Full roster data for all 18 teams in daily lineups
 - Proper date handling using transaction timestamps
+- Draft type detection via `is_auction_draft` field
 
 ## Project Architecture
 
@@ -275,6 +292,7 @@ gkl-league-analytics/
 ├── data_pipeline/                 # Python data collection
 │   ├── league_transactions/       # Transaction processing
 │   ├── daily_lineups/            # Lineup collection
+│   ├── draft_results/            # Draft data collection
 │   ├── player_stats/             # MLB stats integration (planned)
 │   └── common/                   # Shared utilities
 ├── cloudflare-production/        # Production deployment
