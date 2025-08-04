@@ -39,6 +39,7 @@ class YahooTokenManager:
         # In GitHub Actions, use refresh token from environment
         refresh_token = os.getenv('YAHOO_REFRESH_TOKEN')
         if refresh_token:
+            print(f"Using refresh token from environment variable (GitHub Actions)")
             return {
                 'refresh_token': refresh_token,
                 'access_token': None,
