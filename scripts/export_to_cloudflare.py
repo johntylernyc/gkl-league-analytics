@@ -41,6 +41,55 @@ def export_recent_data():
     
     print(f"🕐 Exporting data from job: {last_job_time}")
     
+    # First, export the job_log entries that will be referenced
+    cursor.execute("""
+        SELECT DISTINCT job_id, job_type, environment, status, 
+               start_time, end_time, records_processed, records_inserted,
+               date_range_start, date_range_end, league_key, error_message, metadata
+        FROM job_log
+        WHERE job_id IN (
+            SELECT DISTINCT job_id FROM league_transactions WHERE created_at >= ?
+            UNION
+            SELECT DISTINCT job_id FROM daily_lineups WHERE date >= date('now', '-3 days')
+            UNION  
+            SELECT DISTINCT job_id FROM daily_gkl_player_stats WHERE date >= date('now', '-7 days')
+        )
+    """, (last_job_time,))
+    
+    job_logs = cursor.fetchall()
+    
+    if job_logs:
+        print(f"📋 Found {len(job_logs)} job log entries to sync")
+        
+        # Generate SQL for job_log entries
+        sql_lines = []
+        sql_lines.append("-- Job log entries export")
+        sql_lines.append(f"-- Generated: {datetime.now().isoformat()}")
+        sql_lines.append("")
+        
+        for job in job_logs:
+            escaped_values = []
+            for v in job:
+                if v is not None:
+                    escaped_val = str(v).replace("'", "''")
+                    escaped_values.append(f"'{escaped_val}'")
+                else:
+                    escaped_values.append('NULL')
+            values = ', '.join(escaped_values)
+            sql_lines.append(f"""
+INSERT OR IGNORE INTO job_log 
+(job_id, job_type, environment, status, start_time, end_time, 
+ records_processed, records_inserted, date_range_start, date_range_end, 
+ league_key, error_message, metadata)
+VALUES ({values});""")
+        
+        # Write job_log file
+        job_file = export_dir / 'job_logs.sql'
+        with open(job_file, 'w') as f:
+            f.write('\n'.join(sql_lines))
+        
+        print(f"✅ Exported job logs to: {job_file}")
+    
     # Export recent transactions
     cursor.execute("""
         SELECT transaction_id, league_key, transaction_date as date,
@@ -200,12 +249,15 @@ def deploy_to_cloudflare():
         print("❌ Wrangler CLI not found. Install with: npm install -g wrangler")
         return False
     
-    # Execute SQL files
+    # Execute SQL files in the correct order (job_logs first for foreign key constraints)
     sql_files = list(export_dir.glob('*.sql'))
     
     if not sql_files:
         print("ℹ️  No SQL files to deploy")
         return True
+    
+    # Sort files to ensure job_logs.sql is executed first
+    sql_files = sorted(sql_files, key=lambda x: (0 if x.name == 'job_logs.sql' else 1, x.name))
     
     # Get environment variables and ensure CloudFlare credentials are set
     env = os.environ.copy()
