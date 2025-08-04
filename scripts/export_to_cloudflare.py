@@ -209,20 +209,30 @@ def deploy_to_cloudflare():
     else:
         print("⚠️  CloudFlare account ID not found in environment")
     
-    # Use the database ID directly instead of the name for reliability
-    database_id = 'f541fa7b-9356-4a96-a24e-3b7cd06e9cfa'
+    # Use the database name as configured in wrangler.toml
+    database_name = 'gkl-fantasy'
     
     for sql_file in sql_files:
         print(f"📤 Executing: {sql_file.name}")
         
+        # Build wrangler command with proper flags
+        wrangler_cmd = [
+            'wrangler', 'd1', 'execute', database_name,
+            '--file', str(sql_file),
+            '--remote',  # Execute on remote database
+            '--env', 'production'  # Use production environment configuration
+        ]
+        
+        print(f"🔧 Running command: {' '.join(wrangler_cmd)}")
+        
         try:
-            # Execute SQL file against D1 database using database ID
-            result = subprocess.run([
-                'wrangler', 'd1', 'execute', database_id, 
-                '--file', str(sql_file)
-            ], capture_output=True, text=True, 
-            cwd=Path(__file__).parent.parent / 'cloudflare-deployment',
-            env=env)
+            # Execute SQL file against D1 database using database name
+            result = subprocess.run(
+                wrangler_cmd,
+                capture_output=True, 
+                text=True, 
+                cwd=Path(__file__).parent.parent / 'cloudflare-deployment',
+                env=env)
             
             if result.returncode == 0:
                 print(f"✅ {sql_file.name} executed successfully")
