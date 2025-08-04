@@ -43,9 +43,20 @@ def export_recent_data():
     
     # Export recent transactions
     cursor.execute("""
-        SELECT transaction_id, league_key, season, transaction_date,
-               transaction_type, team_key, team_name, player_id, player_name,
-               from_team_key, to_team_key
+        SELECT transaction_id, league_key, transaction_date as date,
+               transaction_type, player_id, player_name,
+               team_name as player_team,
+               CASE 
+                   WHEN transaction_type = 'add' THEN 'add'
+                   WHEN transaction_type = 'drop' THEN 'drop'
+                   ELSE transaction_type
+               END as movement_type,
+               NULL as player_position,
+               to_team_key as destination_team_key,
+               team_name as destination_team_name,
+               from_team_key as source_team_key,
+               NULL as source_team_name,
+               job_id
         FROM league_transactions
         WHERE created_at >= ?
         ORDER BY transaction_date, transaction_id
@@ -73,9 +84,10 @@ def export_recent_data():
                     escaped_values.append('NULL')
             values = ', '.join(escaped_values)
             sql_lines.append(f"""
-INSERT OR REPLACE INTO league_transactions 
-(transaction_id, league_key, season, transaction_date, transaction_type, 
- team_key, team_name, player_id, player_name, from_team_key, to_team_key)
+INSERT OR REPLACE INTO transactions 
+(transaction_id, league_key, date, transaction_type, player_id, player_name,
+ player_team, movement_type, player_position, destination_team_key, 
+ destination_team_name, source_team_key, source_team_name, job_id)
 VALUES ({values});""")
         
         # Write transactions file
@@ -219,8 +231,7 @@ def deploy_to_cloudflare():
         wrangler_cmd = [
             'wrangler', 'd1', 'execute', database_name,
             '--file', str(sql_file),
-            '--remote',  # Execute on remote database
-            '--env', 'production'  # Use production environment configuration
+            '--remote'  # Execute on remote database
         ]
         
         print(f"🔧 Running command: {' '.join(wrangler_cmd)}")
