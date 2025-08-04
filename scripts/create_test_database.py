@@ -91,6 +91,7 @@ def create_test_database():
     # Create minimal daily_gkl_player_stats table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_gkl_player_stats (
+            job_id TEXT,
             yahoo_player_id INTEGER,
             date DATE,
             content_hash TEXT,
@@ -160,7 +161,7 @@ def create_test_database():
     conn.commit()
     conn.close()
     
-    print(f"✅ Test database created successfully")
+    print(f"Test database created successfully")
     print(f"   Database size: {db_path.stat().st_size} bytes")
 
 if __name__ == "__main__":

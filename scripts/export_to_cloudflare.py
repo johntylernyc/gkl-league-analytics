@@ -45,25 +45,34 @@ def export_recent_data():
     job_ids = set()
     
     # Get job_ids from transactions
-    cursor.execute("""
-        SELECT DISTINCT job_id FROM league_transactions 
-        WHERE created_at >= ? AND job_id IS NOT NULL
-    """, (last_job_time,))
-    job_ids.update([row[0] for row in cursor.fetchall()])
+    try:
+        cursor.execute("""
+            SELECT DISTINCT job_id FROM league_transactions 
+            WHERE created_at >= ? AND job_id IS NOT NULL
+        """, (last_job_time,))
+        job_ids.update([row[0] for row in cursor.fetchall()])
+    except sqlite3.OperationalError as e:
+        print(f"⚠️  Warning: Could not get job_ids from league_transactions: {e}")
     
     # Get job_ids from lineups
-    cursor.execute("""
-        SELECT DISTINCT job_id FROM daily_lineups 
-        WHERE date >= date('now', '-3 days') AND job_id IS NOT NULL
-    """)
-    job_ids.update([row[0] for row in cursor.fetchall()])
+    try:
+        cursor.execute("""
+            SELECT DISTINCT job_id FROM daily_lineups 
+            WHERE date >= date('now', '-3 days') AND job_id IS NOT NULL
+        """)
+        job_ids.update([row[0] for row in cursor.fetchall()])
+    except sqlite3.OperationalError as e:
+        print(f"⚠️  Warning: Could not get job_ids from daily_lineups: {e}")
     
     # Get job_ids from stats
-    cursor.execute("""
-        SELECT DISTINCT job_id FROM daily_gkl_player_stats 
-        WHERE date >= date('now', '-7 days') AND job_id IS NOT NULL
-    """)
-    job_ids.update([row[0] for row in cursor.fetchall()])
+    try:
+        cursor.execute("""
+            SELECT DISTINCT job_id FROM daily_gkl_player_stats 
+            WHERE date >= date('now', '-7 days') AND job_id IS NOT NULL
+        """)
+        job_ids.update([row[0] for row in cursor.fetchall()])
+    except sqlite3.OperationalError as e:
+        print(f"⚠️  Warning: Could not get job_ids from daily_gkl_player_stats: {e}")
     
     if job_ids:
         print(f"📋 Found {len(job_ids)} job IDs to ensure exist in D1")
