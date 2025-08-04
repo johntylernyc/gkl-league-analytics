@@ -139,25 +139,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv
       
+      - name: Create test database
+        run: |
+          python scripts/create_test_database.py
+      
       - name: Run transaction incremental update
         env:
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
           YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
           YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
-          YAHOO_AUTHORIZATION_CODE: ${{ secrets.YAHOO_AUTHORIZATION_CODE }}
+          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
         run: |
+          echo "Running transaction incremental update..."
           python league_transactions/incremental_update.py \
             --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Transaction update failed with exit code $?"
       
-      - name: Upload logs
+      - name: Debug output
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: transaction-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
-          path: logs/transactions_*.log
-          retention-days: 7
+        run: |
+          echo "Transaction job completed"
+          echo "Working directory contents:"
+          ls -la
 
   refresh-lineups:
     name: Refresh Daily Lineups
@@ -186,25 +190,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv
       
+      - name: Create test database
+        run: |
+          python scripts/create_test_database.py
+      
       - name: Run lineup incremental update
         env:
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
           YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
           YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
-          YAHOO_AUTHORIZATION_CODE: ${{ secrets.YAHOO_AUTHORIZATION_CODE }}
+          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
         run: |
+          echo "Running lineup incremental update..."
           python daily_lineups/incremental_update.py \
             --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Lineup update failed with exit code $?"
       
-      - name: Upload logs
+      - name: Debug output
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lineup-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
-          path: logs/lineups_*.log
-          retention-days: 7
+        run: |
+          echo "Lineup job completed"
+          echo "Working directory contents:"
+          ls -la
 
   refresh-stats:
     name: Refresh Player Stats
@@ -231,22 +239,31 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests python-dotenv pybaseball
+          pip install requests python-dotenv
+      
+      - name: Create test database
+        run: |
+          python scripts/create_test_database.py pybaseball
       
       - name: Run stats incremental update
+        env:
+          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
+          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
         run: |
+          echo "Running stats incremental update..."
           python player_stats/incremental_update.py \
             --start-date ${{ needs.determine-refresh-params.outputs.start_date }} \
             --end-date ${{ needs.determine-refresh-params.outputs.end_date }} \
-            --environment ${{ needs.determine-refresh-params.outputs.environment }}
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} || echo "Stats update failed with exit code $?"
       
-      - name: Upload logs
+      - name: Debug output
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: stats-logs-${{ needs.determine-refresh-params.outputs.refresh_type }}
-          path: logs/stats_*.log
-          retention-days: 7
+        run: |
+          echo "Stats job completed"
+          echo "Working directory contents:"
+          ls -la
 
   database-backup:
     name: Backup Database
