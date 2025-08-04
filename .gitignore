@@ -56,6 +56,15 @@ credentials/
 auth/config.py
 scripts/sync_notion_prds.py
 
+# Deployment files with potential secrets
+deployment/*_SETUP.md
+deployment/*secrets*.md
+deployment/*credential*.md
+deployment/*_WITH_SECRETS.md
+deployment/yahoo_oauth_secrets_guide.md
+deployment/setup_github_secrets.md
+deployment/YAHOO_OAUTH_SETUP.md
+
 # CloudFlare Workers Configuration
 cloudflare-deployment/.env
 cloudflare-deployment/.env.*

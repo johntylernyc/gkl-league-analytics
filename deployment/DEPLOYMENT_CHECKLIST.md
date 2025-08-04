@@ -10,7 +10,7 @@ Go to: **Settings** → **Secrets and variables** → **Actions**
 - [x] Add `YAHOO_CLIENT_ID`
 - [x] Add `YAHOO_CLIENT_SECRET`
 - [x] Add `YAHOO_REDIRECT_URI`
-- [x] Add `YAHOO_AUTHORIZATION_CODE`
+- [x] Add `YAHOO_REFRESH_TOKEN`
 - [-] (Optional) Add `SLACK_WEBHOOK_URL`
 - [-] (Optional) Add `DISCORD_WEBHOOK_URL`
 
