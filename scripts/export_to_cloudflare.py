@@ -200,7 +200,7 @@ def deploy_to_cloudflare():
         try:
             # Execute SQL file against D1 database
             result = subprocess.run([
-                'wrangler', 'd1', 'execute', 'fantasy-baseball-db', 
+                'wrangler', 'd1', 'execute', 'gkl-fantasy', 
                 '--file', str(sql_file), '--env', 'production'
             ], capture_output=True, text=True, cwd=Path(__file__).parent.parent / 'cloudflare-deployment')
             
