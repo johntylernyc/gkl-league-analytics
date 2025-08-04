@@ -200,9 +200,54 @@ VALUES ({values});""")
         print(f"✅ Exported lineups to: {lineup_file}")
     
     # Export recent stats (last 7 days)
+    # Select all the columns that exist in the source table and map to D1 schema
     cursor.execute("""
-        SELECT yahoo_player_id, date, batting_hits, batting_runs, batting_rbis,
-               batting_home_runs, batting_stolen_bases, has_batting_data, has_correction
+        SELECT job_id, date, mlb_player_id, yahoo_player_id, 
+               player_name, team_code, position_codes, 
+               COALESCE(games_played, 1) as games_played,
+               batting_plate_appearances,
+               batting_at_bats,
+               batting_runs, batting_hits, 
+               batting_singles,
+               batting_doubles,
+               batting_triples,
+               batting_home_runs, batting_rbis, batting_stolen_bases,
+               batting_caught_stealing,
+               batting_walks,
+               batting_intentional_walks,
+               batting_strikeouts,
+               batting_hit_by_pitch,
+               batting_sacrifice_hits,
+               batting_sacrifice_flies,
+               batting_ground_into_double_play,
+               batting_total_bases,
+               pitching_games_started,
+               pitching_complete_games,
+               pitching_shutouts,
+               pitching_wins,
+               pitching_losses,
+               pitching_saves,
+               pitching_blown_saves,
+               pitching_holds,
+               pitching_innings_pitched,
+               pitching_batters_faced,
+               pitching_hits_allowed,
+               pitching_runs_allowed,
+               pitching_earned_runs,
+               pitching_home_runs_allowed,
+               pitching_walks_allowed,
+               pitching_intentional_walks_allowed,
+               pitching_strikeouts,
+               pitching_hit_batters,
+               pitching_wild_pitches,
+               pitching_balks,
+               pitching_quality_starts,
+               COALESCE(data_source, 'export') as data_source,
+               COALESCE(confidence_score, 1.0) as confidence_score,
+               has_batting_data,
+               COALESCE(has_pitching_data, 0) as has_pitching_data,
+               COALESCE(validation_status, 'valid') as validation_status,
+               validation_notes
         FROM daily_gkl_player_stats
         WHERE date >= date('now', '-7 days')
           AND has_batting_data = 1
@@ -224,11 +269,34 @@ VALUES ({values});""")
         sql_lines.append("")
         
         for stat in stats:
-            values = ', '.join([str(v) if v is not None else 'NULL' for v in stat])
+            # Properly escape and format values
+            escaped_values = []
+            for v in stat:
+                if v is not None:
+                    if isinstance(v, str):
+                        escaped_val = str(v).replace("'", "''")
+                        escaped_values.append(f"'{escaped_val}'")
+                    else:
+                        escaped_values.append(str(v))
+                else:
+                    escaped_values.append('NULL')
+            values = ', '.join(escaped_values)
+            
             sql_lines.append(f"""
 INSERT OR REPLACE INTO daily_gkl_player_stats 
-(yahoo_player_id, date, batting_hits, batting_runs, batting_rbis, 
- batting_home_runs, batting_stolen_bases, has_batting_data, has_correction)
+(job_id, date, mlb_player_id, yahoo_player_id, player_name, team_code, position_codes,
+ games_played, batting_plate_appearances, batting_at_bats, batting_runs, batting_hits,
+ batting_singles, batting_doubles, batting_triples, batting_home_runs, batting_rbis,
+ batting_stolen_bases, batting_caught_stealing, batting_walks, batting_intentional_walks,
+ batting_strikeouts, batting_hit_by_pitch, batting_sacrifice_hits, batting_sacrifice_flies,
+ batting_ground_into_double_play, batting_total_bases, pitching_games_started,
+ pitching_complete_games, pitching_shutouts, pitching_wins, pitching_losses,
+ pitching_saves, pitching_blown_saves, pitching_holds, pitching_innings_pitched,
+ pitching_batters_faced, pitching_hits_allowed, pitching_runs_allowed, pitching_earned_runs,
+ pitching_home_runs_allowed, pitching_walks_allowed, pitching_intentional_walks_allowed,
+ pitching_strikeouts, pitching_hit_batters, pitching_wild_pitches, pitching_balks,
+ pitching_quality_starts, data_source, confidence_score, has_batting_data,
+ has_pitching_data, validation_status, validation_notes)
 VALUES ({values});""")
         
         # Write stats file
