@@ -91,8 +91,8 @@ jobs:
                 END_DATE=$TODAY
                 ;;
               *)
-                # Default: 2 days
-                START_DATE=$(date -d "2 days ago" +%Y-%m-%d)
+                # Default: 7 days for manual runs to catch up on data
+                START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
                 END_DATE=$TODAY
                 ;;
             esac

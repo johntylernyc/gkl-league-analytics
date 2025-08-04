@@ -62,7 +62,15 @@ def export_recent_data():
         sql_lines.append("")
         
         for txn in transactions:
-            values = ', '.join([f"'{str(v).replace(\"'\", \"''\")}" if v else 'NULL' for v in txn])
+            # Fix f-string syntax - can't use backslash in f-string
+            escaped_values = []
+            for v in txn:
+                if v:
+                    escaped_val = str(v).replace("'", "''")
+                    escaped_values.append(f"'{escaped_val}'")
+                else:
+                    escaped_values.append('NULL')
+            values = ', '.join(escaped_values)
             sql_lines.append(f"""
 INSERT OR REPLACE INTO league_transactions 
 (transaction_id, league_key, season, transaction_date, transaction_type, 
@@ -100,7 +108,15 @@ VALUES ({values});""")
         sql_lines.append("")
         
         for lineup in lineups:
-            values = ', '.join([f"'{str(v).replace(\"'\", \"''\")}" if v else 'NULL' for v in lineup])
+            # Fix f-string syntax - can't use backslash in f-string
+            escaped_values = []
+            for v in lineup:
+                if v:
+                    escaped_val = str(v).replace("'", "''")
+                    escaped_values.append(f"'{escaped_val}'")
+                else:
+                    escaped_values.append('NULL')
+            values = ', '.join(escaped_values)
             sql_lines.append(f"""
 INSERT INTO daily_lineups 
 (job_id, season, date, team_key, team_name, player_id, player_name, selected_position)
