@@ -27,6 +27,7 @@ class TransactionService {
       SELECT 
         id,
         date,
+        timestamp,
         league_key,
         transaction_id,
         transaction_type,
@@ -122,7 +123,8 @@ class TransactionService {
     }
 
     // Add ordering and pagination
-    sql += ` ORDER BY date DESC, created_at DESC`;
+    // Use timestamp for ordering when available, fallback to date
+    sql += ` ORDER BY IFNULL(timestamp, 0) DESC, date DESC, created_at DESC`;
     
     // Get total count for pagination
     const countSql = sql.replace(/SELECT[\s\S]*?FROM/, 'SELECT COUNT(*) as count FROM');

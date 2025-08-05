@@ -411,10 +411,12 @@ export default {
           const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
           
           // Query with filters
+          // Use timestamp for ordering when available, fallback to date
+          // Note: IFNULL is D1-compatible (COALESCE also works in D1)
           const query = `
             SELECT * FROM transactions 
             ${whereClause}
-            ORDER BY date DESC, created_at DESC
+            ORDER BY IFNULL(timestamp, 0) DESC, date DESC, created_at DESC
             LIMIT ? OFFSET ?
           `;
           bindings.push(limit, offset);
