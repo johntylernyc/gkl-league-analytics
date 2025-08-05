@@ -51,6 +51,14 @@ git ls-files --others --exclude-standard
 # 4. Verify environment files
 ls -la web-ui/frontend/.env*
 # Ensure .env.local exists for development
+
+# 5. Check for partial features
+git diff main --name-only
+# Ensure no unrelated changes are included
+
+# 6. Test SQL compatibility
+# If SQL changes, test in D1 first:
+# npx wrangler d1 execute gkl-fantasy --command "YOUR SQL HERE" --local
 ```
 
 ## Deployment Process
@@ -229,6 +237,25 @@ npm run deploy
 2. Clear npm cache: `npm cache clean --force`
 3. Rebuild and redeploy
 
+### Issue: SQL Works Locally but Not in D1
+
+**Symptoms**:
+- Queries return empty results in production
+- Same query works in local SQLite
+
+**Cause**: D1 SQL compatibility differences
+
+**Common Issues**:
+- `strftime('%s', date)` - doesn't work in D1
+- Complex date functions may behave differently
+- Some SQLite-specific functions not supported
+
+**Solution**:
+1. Test SQL in D1 before deployment
+2. Use simpler, ANSI-standard SQL when possible
+3. Avoid SQLite-specific functions
+4. Test with: `npx wrangler d1 execute gkl-fantasy --command "SQL" --remote`
+
 ## Monitoring and Alerts
 
 ### Manual Monitoring
@@ -259,8 +286,9 @@ Until automated monitoring is implemented:
 - **GitHub Status**: https://www.githubstatus.com/
 - **Team Escalation**: [Define escalation path]
 
-## Appendix: Outage Timeline (Aug 5, 2025)
+## Appendix: Incident Timeline (Aug 5, 2025)
 
+### Incident 1: Uncommitted Code Deployment
 1. **~11:50 AM**: Uncommitted code deployed with `--commit-dirty=true`
 2. **~11:57 AM**: Frontend deployed with missing `utils/dateFormatters.js`
 3. **~4:00 PM**: Production outage detected
@@ -273,6 +301,17 @@ Until automated monitoring is implemented:
 **Root Causes**: 
 1. Uncommitted code deployed
 2. `.env.local` used in production build
+
+### Incident 2: Transaction Display Failure
+1. **~6:00 PM**: Deployed draft values feature successfully
+2. **~6:05 PM**: Discovered transactions not displaying
+3. **~6:10 PM**: Identified partial timestamp feature deployment
+4. **~6:15 PM**: Created hotfix branch
+5. **~6:20 PM**: Deployed fix reverting to simple date ordering
+6. **~6:22 PM**: Service fully restored
+
+**Total Downtime**: ~20 minutes  
+**Root Cause**: SQL compatibility issue with D1 (`strftime` function not supported)
 
 ---
 

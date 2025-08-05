@@ -460,6 +460,10 @@ update_job_log(job_id, 'completed', records_processed=N, records_inserted=M)
 2. **Indexes** - Performance test before adding
 3. **Transactions** - Use for multi-table updates
 4. **Backup** - Before any destructive operations
+5. **SQL Compatibility** - Test all SQL in D1 before deployment
+   - Avoid SQLite-specific functions like `strftime('%s', date)`
+   - Use ANSI-standard SQL when possible
+   - Test with: `npx wrangler d1 execute gkl-fantasy --command "SQL" --remote`
 
 ### Automation Patterns
 

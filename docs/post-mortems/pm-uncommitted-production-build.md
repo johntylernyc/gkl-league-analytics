@@ -155,3 +155,34 @@ Despite successful rollback, the production site is still not displaying data. F
 
 ### Key Learning: 
 React's build process prioritizes `.env.local` over `.env.production`, causing production builds to use development settings when built locally. Always ensure `.env.local` is not present when building for production.
+
+## Secondary Incident: Transaction Display Failure
+
+### Timeline
+- **Aug 5, ~6:00 PM**: After deploying draft values feature, discovered transactions not displaying
+- **Root Cause**: Partial deployment of timestamp feature - API had `COALESCE(timestamp, strftime('%s', date))` ordering
+- **Issue**: The strftime function wasn't working correctly in Cloudflare D1, returning empty results
+- **Resolution**: Reverted to simple `date DESC` ordering via hotfix branch
+
+### Additional Lessons Learned
+
+7. **Partial feature deployments** are dangerous
+   - Another developer's timestamp changes were partially included in our deployment
+   - The API changes were deployed without the corresponding data collection updates
+   - This broke transaction display completely
+
+8. **SQL compatibility** varies between environments
+   - `strftime('%s', date)` works in SQLite but not in Cloudflare D1
+   - Always test SQL changes in the target environment
+   - Consider using simpler, more portable SQL when possible
+
+9. **Feature branch discipline** is critical
+   - Uncommitted changes from multiple features got mixed together
+   - Each feature should be in its own branch with clean commits
+   - Never deploy partial features
+
+### Updated Action Items
+- [x] Create hotfix for transaction ordering issue
+- [ ] Complete timestamp feature implementation properly
+- [ ] Add SQL compatibility testing for D1
+- [ ] Enforce stricter feature branch policies
