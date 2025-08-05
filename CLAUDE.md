@@ -74,7 +74,18 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
    - Cloudflare (worker rollback)
    - Configuration (wrangler.toml versions)
 
-### 6. Pre-Commit Security Review
+### 6. Release Documentation
+
+**For EVERY production deployment**, Claude must:
+
+1. **Create User-Facing Release Notes**:
+   - Write release notes in `docs/permanent-docs/release-notes/`
+   - Format: `YYYY-MM-DD-feature-name.md`
+   - Use user-friendly language (not technical jargon)
+   - Include screenshots for UI changes when applicable
+   - Link to implementation documentation for technical details
+
+### 7. Pre-Commit Security Review
 
 **Before EVERY GitHub commit**, Claude must:
 
