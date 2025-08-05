@@ -96,14 +96,17 @@ const PlayerHeader = ({
                 <span className="text-sm text-gray-500 mr-2">Eligible Positions:</span>
                 <div className="inline-flex flex-wrap gap-1">
                   {typeof player.eligible_positions === 'string' ? 
-                    player.eligible_positions.split(',').map((pos, index) => (
-                      <span 
-                        key={index}
-                        className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
-                      >
-                        {pos.trim()}
-                      </span>
-                    )) : (
+                    player.eligible_positions.split(',')
+                      .map(pos => pos.trim())
+                      .filter(pos => pos !== 'IL')
+                      .map((pos, index) => (
+                        <span 
+                          key={index}
+                          className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium"
+                        >
+                          {pos}
+                        </span>
+                      )) : (
                       <span className="text-sm text-gray-500">No positions available</span>
                     )
                   }
