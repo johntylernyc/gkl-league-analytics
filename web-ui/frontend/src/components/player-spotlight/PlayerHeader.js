@@ -111,6 +111,42 @@ const PlayerHeader = ({
               </div>
             )}
 
+            {/* Draft Information - NEW SECTION */}
+            {player.draft_info && (
+              <div className="flex flex-wrap items-center gap-x-2 text-gray-600 mt-2">
+                {player.draft_info.draft_cost > 0 && (
+                  <>
+                    <span className="font-medium">
+                      Draft: ${player.draft_info.draft_cost}
+                    </span>
+                    <span className="hidden sm:inline">•</span>
+                  </>
+                )}
+                {player.draft_info.keeper_status && (
+                  <>
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                      Keeper
+                    </span>
+                    <span className="hidden sm:inline">•</span>
+                  </>
+                )}
+                <span className="text-sm sm:text-base">
+                  Round {player.draft_info.draft_round}, Pick {player.draft_info.draft_pick}
+                </span>
+                <span className="hidden sm:inline">•</span>
+                <span className="text-sm sm:text-base">
+                  Drafted by: {player.draft_info.drafted_by}
+                </span>
+              </div>
+            )}
+
+            {/* Undrafted case */}
+            {!player.draft_info && (
+              <div className="text-gray-500 text-sm mt-2">
+                Undrafted in {currentSeason}
+              </div>
+            )}
+
             {/* Team History */}
             {player.team_history && player.team_history.length > 1 && (
               <div className="mt-4 pt-4 border-t border-gray-200">

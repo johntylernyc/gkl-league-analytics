@@ -414,7 +414,7 @@ export default {
           const query = `
             SELECT * FROM transactions 
             ${whereClause}
-            ORDER BY date DESC, created_at DESC
+            ORDER BY COALESCE(timestamp, strftime('%s', date)) DESC, created_at DESC
             LIMIT ? OFFSET ?
           `;
           bindings.push(limit, offset);
@@ -774,6 +774,29 @@ export default {
             }
           }
           
+          // Get draft information
+          let draftInfo = await env.DB.prepare(`
+            SELECT 
+              dr.draft_cost,
+              dr.draft_round,
+              dr.draft_pick,
+              dr.team_name as drafted_by,
+              dr.draft_type,
+              dr.keeper_status
+            FROM draft_results dr
+            WHERE dr.player_id = ? 
+              AND dr.season = ?
+          `).bind(playerId, season).first();
+          
+          // Clean up keeper_status - only include if true
+          if (draftInfo) {
+            if (draftInfo.keeper_status) {
+              draftInfo.keeper_status = true;
+            } else {
+              delete draftInfo.keeper_status;
+            }
+          }
+          
           const response = {
             player: {
               player_id: playerInfo.player_id,
@@ -784,7 +807,8 @@ export default {
               player_status: playerInfo.player_status,
               current_fantasy_team: playerInfo.current_fantasy_team,
               current_team_since: formattedTeamHistory.length > 0 ? formattedTeamHistory[0].from_date : '2025-03-27',
-              team_history: formattedTeamHistory
+              team_history: formattedTeamHistory,
+              draft_info: draftInfo || null
             },
             season: season,
             usage_breakdown: {
