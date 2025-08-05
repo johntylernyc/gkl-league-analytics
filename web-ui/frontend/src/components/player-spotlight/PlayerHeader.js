@@ -134,7 +134,7 @@ const PlayerHeader = ({
                   </>
                 )}
                 <span className="text-sm sm:text-base">
-                  Round {player.draft_info.draft_round}, Pick {player.draft_info.draft_pick}
+                  Round {player.draft_info.draft_round}: Pick {player.draft_info.draft_pick}
                 </span>
                 <span className="hidden sm:inline">•</span>
                 <span className="text-sm sm:text-base">
