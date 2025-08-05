@@ -183,8 +183,15 @@ python daily_lineups/update_lineups.py --date 2025-08-04
 # Draft results (once per season after draft)
 python draft_results/collector.py --league_key "458.l.6966" --season 2025
 
-# Player statistics (when implemented)
-python player_stats/incremental_update.py
+# Player statistics - Bulk backfill
+python player_stats/backfill_stats.py --season 2025
+python player_stats/backfill_stats.py --start 2025-03-01 --end 2025-09-30 --workers 4
+
+# Player statistics - Incremental updates
+python player_stats/update_stats.py        # Default 7-day lookback (SQLite)
+python player_stats/update_stats.py --use-d1     # Force Cloudflare D1
+python player_stats/update_stats.py --since-last
+python player_stats/update_stats.py --date 2025-08-04
 ```
 
 ### Database Operations
@@ -246,15 +253,87 @@ gh run list --workflow=data-refresh.yml --limit=5
 - Use REPLACE for data tables to handle updates
 
 ### Deployment
+
+#### Production Deployment Standards (CRITICAL - Added after Aug 5, 2025 outage)
+
+**MANDATORY Pre-Deployment Checklist:**
+1. **Git Status Check**: Run `git status` - must show "nothing to commit, working tree clean"
+2. **All Changes Committed**: NEVER deploy uncommitted code to production
+3. **Remove .env.local**: Temporarily rename to prevent development settings in production builds
+4. **Verify Build Output**: Check that JS bundle hash changes when expected
+5. **Test on Staging**: Deploy to a test URL first when possible
+
+**PROHIBITED Actions:**
+- ❌ NEVER use `--commit-dirty=true` for production deployments
+- ❌ NEVER build production locally with `.env.local` present
+- ❌ NEVER deploy without a corresponding git commit
+- ❌ NEVER skip the pre-deployment checklist
+
+#### Correct Production Deployment Process
+
 ```bash
-# Deploy API to Cloudflare Workers
+# 1. Ensure all changes are committed
+git add .
+git commit -m "Clear description of changes"
+git push origin main
+
+# 2. Deploy API to Cloudflare Workers
 cd cloudflare-production
 npm run deploy
 
-# Deploy frontend to Cloudflare Pages
+# 3. Deploy frontend to Cloudflare Pages
 cd web-ui/frontend
-npm run build
-npx wrangler pages deploy build --project-name gkl-fantasy
+
+# CRITICAL: Handle .env.local for production builds
+mv .env.local .env.local.backup  # Temporarily remove
+npm run build                     # Build will use .env.production
+npx wrangler pages deploy build --project-name gkl-fantasy-frontend
+mv .env.local.backup .env.local  # Restore for development
+
+# 4. Verify deployment
+# - Check browser console for errors
+# - Verify API endpoints are accessible
+# - Test core functionality
+```
+
+#### Environment File Hierarchy (React)
+1. `.env.local` - HIGHEST PRIORITY (development only)
+2. `.env.production` - Production settings
+3. `.env` - Shared settings
+4. Hardcoded fallbacks in code
+
+**Warning**: `.env.local` will override `.env.production` even in production builds!
+
+### Feature Branch Workflow (Required for all new features)
+
+**Never develop features directly on main branch**. Use this workflow:
+
+```bash
+# 1. Create feature branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/descriptive-name
+
+# 2. Develop and test locally
+# Make changes, test thoroughly
+git add .
+git commit -m "feat: clear description of changes"
+
+# 3. Deploy to test environment (optional)
+# Can deploy to a test Pages URL for validation
+
+# 4. Merge to main when ready
+git checkout main
+git pull origin main
+git merge feature/descriptive-name
+git push origin main
+
+# 5. Deploy to production from main
+# Follow production deployment process above
+
+# 6. Delete feature branch
+git branch -d feature/descriptive-name
+git push origin --delete feature/descriptive-name
 ```
 
 ## Recent Improvements (August 2025)

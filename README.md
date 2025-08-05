@@ -267,16 +267,30 @@ gkl-league-analytics/
 
 ## 🚢 Deployment
 
+### ⚠️ Critical Deployment Requirements (Updated Aug 5, 2025)
+
+**NEVER deploy uncommitted code to production!** A production outage occurred when uncommitted code was deployed.
+
+#### Pre-Deployment Checklist
+- [ ] Run `git status` - MUST show "nothing to commit"
+- [ ] All changes committed and pushed to GitHub
+- [ ] Feature tested locally
+- [ ] No `.env.local` file present during production builds
+- [ ] Using feature branch (not main) for development
+
 ### Deploy to Production
 
-1. **Configure Cloudflare**
+1. **Ensure Clean Git State**
+```bash
+git status  # Must show "nothing to commit, working tree clean"
+git log -1  # Verify latest commit
+```
+
+2. **Configure Cloudflare** (First time only)
 ```bash
 cd cloudflare-production
 npx wrangler login
-```
 
-2. **Create Resources**
-```bash
 # Create production database
 npx wrangler d1 create gkl-fantasy
 
@@ -288,15 +302,34 @@ npx wrangler kv namespace create CACHE
 
 3. **Deploy API**
 ```bash
+cd cloudflare-production
 npm run deploy
 ```
 
-4. **Deploy Frontend**
+4. **Deploy Frontend** (Critical Process)
 ```bash
 cd ../web-ui/frontend
-npm run build
-npx wrangler pages deploy build --project-name gkl-fantasy
+
+# CRITICAL: Prevent .env.local from affecting production build
+mv .env.local .env.local.backup    # Temporarily rename
+npm run build                       # Build uses .env.production
+npx wrangler pages deploy build --project-name gkl-fantasy-frontend
+mv .env.local.backup .env.local    # Restore for development
 ```
+
+5. **Verify Deployment**
+- Check browser console (F12) for errors
+- Test API endpoints: `curl https://gkl-fantasy-api.services-403.workers.dev/health`
+- Verify data loads on https://goldenknightlounge.com
+
+### Common Deployment Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Frontend connects to localhost | `.env.local` used in build | Remove `.env.local` before building |
+| Missing modules in production | Uncommitted files | Commit all changes before deploy |
+| Build doesn't update | Same file hash | Clear build folder and rebuild |
+| CORS errors | Wrong API URL | Check environment variables |
 
 ## 📈 Performance
 
