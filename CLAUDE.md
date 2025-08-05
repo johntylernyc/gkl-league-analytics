@@ -76,14 +76,31 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 
 ### 6. Release Documentation
 
-**For EVERY production deployment**, Claude must:
+**For qualifying production deployments**, Claude must create user-facing release notes.
 
-1. **Create User-Facing Release Notes**:
-   - Write release notes in `docs/permanent-docs/release-notes/`
+**Release Notes Required For**:
+- ✅ New features visible to users
+- ✅ User interface changes or improvements  
+- ✅ API changes that affect user experience
+- ✅ Performance improvements users would notice
+- ✅ Major bug fixes that restore broken functionality
+
+**Release Notes NOT Required For**:
+- ❌ Documentation updates (like this commit)
+- ❌ Internal code refactoring with no user impact
+- ❌ Developer tooling changes
+- ❌ Configuration changes
+- ❌ Minor bug fixes or hotfixes (unless specifically requested)
+
+**Release Notes Format**:
+   - Write release notes in `docs/release-notes/`
    - Format: `YYYY-MM-DD-feature-name.md`
    - Use user-friendly language (not technical jargon)
    - Include screenshots for UI changes when applicable
-   - Link to implementation documentation for technical details
+   - **Required Links Section**:
+     - Link to related PRD: `../prds/prd-[feature-name].md`
+     - Link to implementation plan: `../development-docs/implemented/plan-[feature-name]-implementation-YYYY-MM.md`
+   - Follow template structure in `docs/release-notes/TEMPLATE.md`
 
 ### 7. Pre-Commit Security Review
 

@@ -55,4 +55,9 @@ This improvement lays the groundwork for future enhancements like:
 
 ---
 
-*Having issues or questions about this update? Check our [implementation documentation](../development-docs/in-progress/improved-transaction-timestamps-implementation-plan.md) for technical details.*
+## Related Documentation
+
+- **Product Requirements**: [Improved Transaction Timestamps PRD](../prds/prd-improved-transaction-timestamps.md)
+- **Technical Implementation**: [Transaction Timestamps Implementation Plan](../development-docs/implemented/plan-transaction-timestamps-implementation-2025-08.md)
+
+*Having issues or questions about this update? Check the technical implementation documentation above for detailed information.*

@@ -147,6 +147,7 @@ class TransactionBackfiller:
                 destination_team_name TEXT,
                 source_team_key TEXT,
                 source_team_name TEXT,
+                timestamp INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 job_id TEXT,
                 UNIQUE(league_key, transaction_id, player_id, movement_type)
@@ -303,10 +304,11 @@ class TransactionBackfiller:
                 
                 # Get actual date from timestamp
                 actual_date = date_str
+                transaction_timestamp = 0  # Default value
                 if timestamp_elem is not None and timestamp_elem.text:
                     try:
-                        timestamp = int(timestamp_elem.text)
-                        actual_date = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+                        transaction_timestamp = int(timestamp_elem.text)
+                        actual_date = datetime.fromtimestamp(transaction_timestamp).strftime('%Y-%m-%d')
                     except (ValueError, TypeError):
                         pass
                 
@@ -343,6 +345,7 @@ class TransactionBackfiller:
                             'destination_team_name': dest_team_name.text if dest_team_name is not None else '',
                             'source_team_key': source_team_key.text if source_team_key is not None else '',
                             'source_team_name': source_team_name.text if source_team_name is not None else '',
+                            'timestamp': transaction_timestamp,
                             'job_id': self.job_id
                         }
                         
@@ -384,14 +387,14 @@ class TransactionBackfiller:
                         date, league_key, transaction_id, transaction_type,
                         player_id, player_name, player_position, player_team,
                         movement_type, destination_team_key, destination_team_name,
-                        source_team_key, source_team_name, job_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        source_team_key, source_team_name, timestamp, job_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     trans['date'], trans['league_key'], trans['transaction_id'],
                     trans['transaction_type'], trans['player_id'], trans['player_name'],
                     trans['player_position'], trans['player_team'], trans['movement_type'],
                     trans['destination_team_key'], trans['destination_team_name'],
-                    trans['source_team_key'], trans['source_team_name'], trans['job_id']
+                    trans['source_team_key'], trans['source_team_name'], trans.get('timestamp', 0), trans['job_id']
                 ))
                 
                 if cursor.rowcount > 0:
