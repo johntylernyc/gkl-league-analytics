@@ -214,3 +214,6 @@ cloudflare-production/sql/incremental/transactions_20250805_003727.sql
 cloudflare-production/sql/incremental/transactions_20250805_003921.sql
 cloudflare-production/sql/incremental/draft_job_logs_20250805_004557.sql
 cloudflare-production/sql/incremental/draft_results_431.l.41728_2024_20250805_004557.sql
+cloudflare-production/sql/incremental/job_logs_20250805_190713.sql
+cloudflare-production/sql/incremental/lineups_20250805_190713.sql
+cloudflare-production/sql/incremental/transactions_20250805_190713.sql
