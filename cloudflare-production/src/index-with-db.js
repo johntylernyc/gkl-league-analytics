@@ -414,7 +414,7 @@ export default {
           const query = `
             SELECT * FROM transactions 
             ${whereClause}
-            ORDER BY COALESCE(timestamp, strftime('%s', date)) DESC, created_at DESC
+            ORDER BY date DESC, created_at DESC
             LIMIT ? OFFSET ?
           `;
           bindings.push(limit, offset);
