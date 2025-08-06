@@ -17,6 +17,7 @@ Key Features:
 import sys
 import sqlite3
 import logging
+import json
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Any, Tuple
@@ -28,7 +29,7 @@ parent_dir = Path(__file__).parent
 root_dir = parent_dir.parent
 sys.path.insert(0, str(root_dir))
 
-from player_stats.config import get_config_for_environment
+from data_pipeline.player_stats.config import get_config_for_environment
 
 # Set up logging
 logging.basicConfig(
@@ -126,6 +127,95 @@ class PlayerStatsJobManager:
         
         logger.info(f"Initialized PlayerStatsJobManager for {environment} environment")
         logger.info(f"Database: {self.db_path}")
+    
+    def start_job(self, job_type: str, date_range_start: str, date_range_end: str,
+                  league_key: str = None, metadata: Dict = None) -> str:
+        """
+        Start a new job and create job_log entry.
+        
+        Args:
+            job_type: Type of job (e.g., 'stats_incremental', 'stats_backfill')
+            date_range_start: Start date (YYYY-MM-DD)
+            date_range_end: End date (YYYY-MM-DD)
+            league_key: League key (optional for player stats)
+            metadata: Additional metadata dict
+            
+        Returns:
+            Generated job_id
+        """
+        import uuid
+        job_id = str(uuid.uuid4())
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('''
+                INSERT INTO job_log (job_id, job_type, environment, status, 
+                                    date_range_start, date_range_end, league_key, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (job_id, job_type, self.environment, 'running', 
+                  date_range_start, date_range_end, league_key, 
+                  json.dumps(metadata) if metadata else None))
+            conn.commit()
+            
+            logger.info(f"Started job: {job_id} ({job_type})")
+            return job_id
+            
+        finally:
+            conn.close()
+    
+    def update_job(self, job_id: str, status: str, records_processed: int = None,
+                   records_inserted: int = None, error_msg: str = None, 
+                   metadata: Dict = None):
+        """
+        Update an existing job's status.
+        
+        Args:
+            job_id: Job ID to update
+            status: New status ('running', 'completed', 'failed')
+            records_processed: Number of records processed
+            records_inserted: Number of records inserted
+            error_msg: Error message if failed
+            metadata: Additional metadata to merge
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get existing metadata
+            cursor.execute('SELECT metadata FROM job_log WHERE job_id = ?', (job_id,))
+            result = cursor.fetchone()
+            existing_metadata = {}
+            if result and result[0]:
+                try:
+                    existing_metadata = json.loads(result[0])
+                except:
+                    pass
+            
+            # Merge metadata
+            if metadata:
+                existing_metadata.update(metadata)
+            
+            # Update job
+            cursor.execute('''
+                UPDATE job_log 
+                SET status = ?,
+                    records_processed = COALESCE(?, records_processed),
+                    records_inserted = COALESCE(?, records_inserted),
+                    error_message = COALESCE(?, error_message),
+                    metadata = ?,
+                    end_time = CASE WHEN ? IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE end_time END
+                WHERE job_id = ?
+            ''', (status, records_processed, records_inserted, error_msg,
+                  json.dumps(existing_metadata) if existing_metadata else None,
+                  status, job_id))
+            
+            conn.commit()
+            logger.info(f"Updated job {job_id}: {status}")
+            
+        finally:
+            conn.close()
     
     def get_job_summary(self, job_id: str) -> Optional[JobSummary]:
         """
