@@ -127,7 +127,46 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
    git status --ignored  # Review what's being excluded
    ```
 
-### 7. Post-Release Cleanup
+### 7. Deployment Checklist (MANDATORY)
+
+**Before ANY production deployment**, Claude must complete ALL items:
+
+1. **Pre-Deployment Verification**:
+   - [ ] All changes committed to Git (no uncommitted files)
+   - [ ] Feature branch created and used (never deploy from main directly)
+   - [ ] Tests run and passing locally
+   - [ ] Data quality validation completed
+   - [ ] Release notes created in `/docs/release-notes/`
+
+2. **GitHub Actions Integration**:
+   - [ ] Verify workflow changes are NOT commented out
+   - [ ] Check job dependencies are correct
+   - [ ] Ensure environment variables are configured
+   - [ ] Test workflow syntax is valid
+   - [ ] Confirm schedule/triggers are appropriate
+
+3. **Documentation Requirements**:
+   - [ ] Create release notes in `/docs/release-notes/YYYY-MM-DD-feature.md`
+   - [ ] Update module README.md files
+   - [ ] Update `/docs/permanent-docs/` with architectural changes
+   - [ ] Document database schema changes
+   - [ ] Update CLAUDE.md if new patterns emerge
+
+4. **Pull Request Process**:
+   - [ ] Create PR from feature branch to main
+   - [ ] Include comprehensive PR description
+   - [ ] Link to related issues/PRDs
+   - [ ] Request review if available
+   - [ ] Merge only after checks pass
+
+5. **Post-Deployment Verification**:
+   - [ ] Monitor first automated run
+   - [ ] Check logs for errors
+   - [ ] Verify data in production
+   - [ ] Document any issues found
+   - [ ] Create follow-up tasks if needed
+
+### 8. Post-Release Cleanup
 
 **After EACH release/commit**, Claude must:
 
@@ -220,6 +259,10 @@ python player_stats/update_stats.py        # Default 7-day lookback (SQLite)
 python player_stats/update_stats.py --use-d1     # Force Cloudflare D1
 python player_stats/update_stats.py --since-last
 python player_stats/update_stats.py --date 2025-08-04
+
+# Player statistics - Data quality check
+python player_stats/data_quality_check.py --days 7
+python player_stats/data_quality_check.py --season 2025
 ```
 
 ### Database Operations
@@ -384,13 +427,14 @@ Added `draft_results` module for annual draft data collection:
 - **Manual Process**: Keeper designation requires post-collection SQL updates
 
 ### Player Stats Pipeline (August 2025)
-Implementing comprehensive MLB player statistics collection:
+Comprehensive MLB player statistics collection now in production:
 - **Scope**: All ~750+ active MLB players daily (not limited to fantasy rosters)
-- **Data Source**: PyBaseball API (wraps Baseball Reference, FanGraphs, MLB Stats)
-- **Player IDs**: Maintains mapping across MLB, Yahoo, Baseball Reference, FanGraphs
-- **Features**: Daily game-by-game stats, calculated rate stats, historical backfill
+- **Data Source**: MLB Stats API via PyBaseball (real-time game data)
+- **Yahoo Integration**: 1,583 players mapped (79% coverage) with fuzzy matching
+- **Features**: Daily batting/pitching stats, health scoring (A-F grades), rate calculations
 - **Architecture**: Follows established pattern (backfill + update + data quality)
-- **Volume**: ~135,000 records per season (750 players × 180 days)
+- **Automation**: GitHub Actions 3x daily (6 AM, 1 PM, 10 PM ET)
+- **Special Handling**: Jr./Sr./III suffix matching, production column name differences
 
 ### Key Fixes
 - League key for 2025: `458.l.6966` (not 449 or mlb prefixes)
