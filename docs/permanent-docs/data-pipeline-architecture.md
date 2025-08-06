@@ -95,7 +95,58 @@ Captures daily roster decisions for all teams through two specialized scripts.
 4. Store in database with unique constraints
 5. Handle 18 teams × ~25 players = ~450 records per day
 
-#### 2.3 Draft Results Collection (`draft_results/`)
+#### 2.3 Player Statistics Collection (`player_stats/`)
+
+Comprehensive MLB player statistics collection for all active players with Yahoo Fantasy ID mapping.
+
+**Core Scripts:**
+- **`backfill_stats.py`**: Bulk historical statistics collection
+  - Parallel processing (up to 4 workers)
+  - Resume capability for interrupted jobs
+  - Collects stats for ALL MLB players (~750+ active)
+  - Season-wide or date range support
+
+- **`update_stats.py`**: Incremental daily updates
+  - 7-day default lookback window
+  - Refreshes Yahoo ID mappings
+  - Direct D1 writes for production
+  - Multiple update modes (days back, since last, specific date)
+
+- **`comprehensive_collector.py`**: Core collection engine
+  - MLB Stats API integration via PyBaseball
+  - Handles both batting and pitching statistics
+  - Rate stat calculations (AVG, OBP, SLG, ERA, WHIP)
+  - Environment-specific column mapping
+
+- **`yahoo_id_matcher.py`**: Player ID mapping system
+  - Fuzzy name matching with Jr./Sr./III suffix handling
+  - Confidence scoring (0.0-1.0 scale)
+  - Maps Yahoo Fantasy IDs to MLB/PyBaseball IDs
+  - 79% coverage (1,583 of ~2,000 Yahoo players)
+
+- **`data_quality_check.py`**: Data validation module
+  - Health scoring system (A-F grades)
+  - Field completeness validation
+  - Statistical consistency checks
+  - Comprehensive reporting
+
+**Key Features (August 2025):**
+- Tracks ALL MLB players, not just fantasy rosters
+- Yahoo ID mapping enables click-through to add/drop pages
+- Daily automated collection via GitHub Actions (3x daily)
+- Multi-platform ID support (MLB, Yahoo, Baseball Reference, FanGraphs)
+- Production column name handling (mlb_player_id vs mlb_id)
+
+**Data Flow:**
+1. Query MLB Stats API for daily game data
+2. Extract batting and pitching statistics
+3. Map players to Yahoo Fantasy IDs
+4. Calculate rate statistics
+5. Validate data quality
+6. Store in database with job tracking
+7. ~750-1,000 records per day
+
+#### 2.4 Draft Results Collection (`draft_results/`)
 
 Captures annual draft data including picks, costs, and keeper designations.
 
@@ -368,6 +419,45 @@ error_message: Failure details if applicable
 - Read-only API access
 - Database user permissions
 - File system restrictions
+
+## Database Schema
+
+### Core Tables
+
+#### Player Statistics Tables
+- **`daily_gkl_player_stats`**: Comprehensive batting and pitching statistics
+  - Primary key: (date, yahoo_player_id)
+  - Columns: 50+ statistical fields including rate stats
+  - Foreign key: job_id → job_log
+  - Indexes: date, yahoo_player_id, mlb_player_id
+
+- **`player_mapping`**: Yahoo to MLB player ID mappings
+  - Primary key: yahoo_player_id
+  - Columns: mlb_player_id, standardized_name, confidence_score
+  - Indexes: mlb_player_id, standardized_name
+
+#### Transaction & Lineup Tables
+- **`league_transactions`**: All add/drop/trade transactions
+  - Primary key: transaction_key
+  - Foreign key: job_id → job_log
+  - Indexes: transaction_date, team_key
+
+- **`daily_lineups`**: Daily roster decisions
+  - Primary key: (date, team_key, yahoo_player_id)
+  - Foreign key: job_id → job_log
+  - Indexes: date, team_key
+
+#### Supporting Tables
+- **`job_log`**: Audit trail for all data operations
+  - Primary key: job_id
+  - Tracks: job_type, status, records_processed, timestamps
+  - Critical for data lineage and debugging
+
+### Schema Evolution (August 2025)
+- Added `player_mapping` table for ID relationships
+- Enhanced `daily_gkl_player_stats` with MLB IDs and health scores
+- Standardized column naming (mlb_player_id in production)
+- Added comprehensive indexes for query optimization
 
 ## Scalability Design
 
