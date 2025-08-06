@@ -31,7 +31,34 @@ React's environment file precedence (highest to lowest):
 
 **Critical Issue**: `.env.local` overrides `.env.production` even in production builds!
 
-### 3. Pre-Deployment Checklist
+### 3. Release Documentation
+
+**Qualifying production deployments MUST include user-facing release notes.**
+
+**Release Notes Required For**:
+- ✅ New features visible to users
+- ✅ User interface changes or improvements  
+- ✅ API changes that affect user experience
+- ✅ Performance improvements users would notice
+- ✅ Major bug fixes that restore broken functionality
+
+**Release Notes NOT Required For**:
+- ❌ Documentation updates
+- ❌ Internal code refactoring with no user impact
+- ❌ Developer tooling changes
+- ❌ Configuration changes
+- ❌ Minor bug fixes or hotfixes (unless specifically requested)
+
+**Release Notes Format**:
+- Stored in `docs/release-notes/` with format `YYYY-MM-DD-feature-name.md`
+- Written in user-friendly language (not technical jargon)
+- Include screenshots for UI changes when applicable
+- **Required documentation links**:
+  - Link to related PRD in `docs/prds/`
+  - Link to implementation plan in `docs/development-docs/implemented/`
+- Follow template structure in `docs/release-notes/TEMPLATE.md`
+
+### 4. Pre-Deployment Checklist
 
 Execute these commands before EVERY deployment:
 
@@ -59,6 +86,10 @@ git diff main --name-only
 # 6. Test SQL compatibility
 # If SQL changes, test in D1 first:
 # npx wrangler d1 execute gkl-fantasy --command "YOUR SQL HERE" --local
+
+# 7. Create release notes
+# Write user-facing release notes in docs/release-notes/
+# Format: YYYY-MM-DD-feature-name.md
 ```
 
 ## Deployment Process

@@ -125,18 +125,55 @@ Captures annual draft data including picks, costs, and keeper designations.
 
 #### 2.4 Player Statistics Integration (`player_stats/`)
 
-Integrates Yahoo player data with MLB statistics.
+Integrates Yahoo player data with MLB statistics through two specialized collection scripts.
 
-**Components:**
+**Core Scripts (Improved August 2025):**
+- **`backfill_stats.py`**: Bulk historical MLB statistics collection
+  - Parallel processing (up to 4 workers)
+  - Multi-season support
+  - PyBaseball integration for batting/pitching data
+  - D1 direct write support
+  - Player ID mapping integration
+  
+- **`update_stats.py`**: Incremental daily updates
+  - 7-day default lookback window (for stat corrections)
+  - Automatic player mapping updates
+  - Minimal output for automation
+  - Multiple update modes (days back, since last, specific date)
+  - D1 direct write support
+
+- **`data_quality_check.py`**: Data validation module
+  - Statistical boundary validation (AVG, ERA, etc.)
+  - Player ID mapping confidence checks
+  - Data consistency validation
+  - Field completeness validation
+
+**Key Improvements (August 2025):**
+- Consolidated from 10+ scripts to clean implementations
+- Archived one-time population scripts
+- Aligned with patterns from transactions/lineups modules
+- Added comprehensive data quality validation
+- Standardized D1 integration
+
+**Supporting Components:**
 - **Player ID Mapper**: Links Yahoo IDs to MLB player IDs
-- **PyBaseball Integration**: Fetches advanced MLB statistics
+- **PyBaseball Integration**: Fetches advanced MLB statistics  
 - **Data Validator**: Ensures data quality and consistency
+- **Job Manager**: Tracks collection jobs and performance
 
 **Data Sources:**
 - Yahoo Fantasy player statistics
 - MLB official statistics via PyBaseball
 - Fangraphs advanced metrics
 - Baseball Reference historical data
+
+**Data Flow:**
+1. Query pybaseball for daily MLB statistics
+2. Map MLB player IDs to Yahoo IDs
+3. Process batting and pitching statistics
+4. Store in staging tables for validation
+5. Merge and transform for final stats table
+6. Update player ID mappings as needed
 
 ### 3. Shared Infrastructure (`data_pipeline/common/`)
 

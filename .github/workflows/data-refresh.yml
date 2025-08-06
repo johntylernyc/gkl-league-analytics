@@ -222,50 +222,49 @@ jobs:
           echo "Working directory contents:"
           ls -la
 
-# Player stats refresh disabled for initial D1 direct write implementation
-# Focus on transactions and lineups only per PRD requirements
-#  refresh-stats:
-#    name: Refresh Player Stats
-#    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
-#    runs-on: ubuntu-latest
-#    
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v4
-#      
-#      - name: Set up Python
-#        uses: actions/setup-python@v5
-#        with:
-#          python-version: ${{ env.PYTHON_VERSION }}
-#      
-#      - name: Cache Python dependencies
-#        uses: actions/cache@v4
-#        with:
-#          path: ~/.cache/pip
-#          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-#          restore-keys: |
-#            ${{ runner.os }}-pip-
-#      
-#      - name: Install dependencies
-#        run: |
-#          python -m pip install --upgrade pip
-#          pip install requests python-dotenv
-#      
-#      - name: Run stats incremental update
-#        env:
-#          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
-#          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
-#          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
-#          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
-#          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-#          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-#          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-#        run: |
-#          echo "Running stats incremental update with D1 direct write..."
-#          python data_pipeline/player_stats/update_stats.py \
-#            --days $DAYS \
-#            --environment ${{ needs.determine-refresh-params.outputs.environment }} \
-#            --use-d1 || echo "Stats update failed with exit code $?"
+# Player stats refresh enabled for comprehensive MLB player statistics
+  refresh-stats:
+    name: Refresh Player Stats
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv pybaseball pandas
+      
+      - name: Run stats incremental update
+        env:
+          YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+          YAHOO_CLIENT_SECRET: ${{ secrets.YAHOO_CLIENT_SECRET }}
+          YAHOO_REDIRECT_URI: ${{ secrets.YAHOO_REDIRECT_URI }}
+          YAHOO_REFRESH_TOKEN: ${{ secrets.YAHOO_REFRESH_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "Running stats incremental update with D1 direct write..."
+          python data_pipeline/player_stats/update_stats.py \
+            --days $DAYS \
+            --environment ${{ needs.determine-refresh-params.outputs.environment }} \
+            --use-d1 || echo "Stats update failed with exit code $?"
 
 # Sync to CloudFlare job removed - using direct D1 writes instead
 # This eliminates the two-step process (Local SQLite → Export → D1)
@@ -273,7 +272,7 @@ jobs:
 
   notify-completion:
     name: Send Notifications  
-    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
+    needs: [determine-refresh-params, refresh-transactions, refresh-lineups, refresh-stats]
     runs-on: ubuntu-latest
     if: always()
     
@@ -282,9 +281,10 @@ jobs:
         id: status
         run: |
           if [ "${{ needs.refresh-transactions.result }}" == "success" ] && \
-             [ "${{ needs.refresh-lineups.result }}" == "success" ]; then
+             [ "${{ needs.refresh-lineups.result }}" == "success" ] && \
+             [ "${{ needs.refresh-stats.result }}" == "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=✅ D1 data refresh completed successfully (transactions and lineups)" >> $GITHUB_OUTPUT
+            echo "message=✅ D1 data refresh completed successfully (transactions, lineups, and player stats)" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "message=❌ D1 data refresh failed" >> $GITHUB_OUTPUT

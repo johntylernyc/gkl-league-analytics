@@ -1,5 +1,5 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { formatTransactionDateTime, formatDate } from '../utils/dateFormatters';
 
 const TransactionTable = ({ transactions, loading }) => {
   if (loading) {
@@ -25,12 +25,16 @@ const TransactionTable = ({ transactions, loading }) => {
     );
   }
 
-  const formatDate = (dateString) => {
-    try {
-      return format(new Date(dateString), 'MMM dd, yyyy');
-    } catch {
-      return dateString;
+  const getDisplayDateTime = (transaction) => {
+    // Use timestamp if available, otherwise fall back to date only
+    if (transaction.timestamp) {
+      return formatTransactionDateTime(transaction.timestamp);
     }
+    // Fallback for transactions without timestamp
+    return {
+      dateLine: formatDate(transaction.date),
+      timeLine: ''
+    };
   };
 
   const getMovementTypeColor = (type) => {
@@ -63,11 +67,16 @@ const TransactionTable = ({ transactions, loading }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {transactions.map((transaction) => (
-              <tr key={transaction.id} className="hover:bg-gray-50">
-                <td className="table-cell text-gray-900">
-                  {formatDate(transaction.date)}
-                </td>
+            {transactions.map((transaction) => {
+              const dateTime = getDisplayDateTime(transaction);
+              return (
+                <tr key={transaction.id} className="hover:bg-gray-50">
+                  <td className="table-cell text-gray-900">
+                    <div className="flex flex-col">
+                      <span className="text-sm">{dateTime.dateLine}</span>
+                      <span className="text-xs text-gray-500">{dateTime.timeLine}</span>
+                    </div>
+                  </td>
                 <td className="table-cell">
                   <div className="font-medium text-gray-900">
                     {transaction.player_name}
@@ -115,7 +124,8 @@ const TransactionTable = ({ transactions, loading }) => {
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

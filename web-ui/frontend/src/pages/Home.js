@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import apiService from '../services/api';
+import { formatTransactionDateTime } from '../utils/dateFormatters';
 
 const Home = () => {
   const [stats, setStats] = useState(null);
@@ -32,6 +33,18 @@ const Home = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const getDisplayDateTime = (transaction) => {
+    // Use timestamp if available, otherwise fall back to date only
+    if (transaction.timestamp) {
+      return formatTransactionDateTime(transaction.timestamp);
+    }
+    // Fallback for transactions without timestamp
+    return {
+      dateLine: formatDate(transaction.date),
+      timeLine: ''
+    };
   };
 
   const getMovementTypeColor = (type) => {
@@ -203,10 +216,15 @@ const Home = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {recentTransactions.map((transaction) => (
+                  {recentTransactions.map((transaction) => {
+                    const dateTime = getDisplayDateTime(transaction);
+                    return (
                     <tr key={transaction.id} className="hover:bg-gray-50">
                       <td className="table-cell text-gray-900">
-                        {formatDate(transaction.date)}
+                        <div className="flex flex-col">
+                          <span className="text-sm">{dateTime.dateLine}</span>
+                          <span className="text-xs text-gray-500">{dateTime.timeLine}</span>
+                        </div>
                       </td>
                       <td className="table-cell">
                         <div className="font-medium text-gray-900">
@@ -233,7 +251,8 @@ const Home = () => {
                         {transaction.destination_team_name || 'Free Agency'}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
