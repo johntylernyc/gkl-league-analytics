@@ -14,7 +14,7 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 - ✅ GitHub Actions scheduled data refresh with direct D1 writes
 - ✅ Dual database support (SQLite for development, D1 for production)
 - ✅ Automated foreign key dependency management
-- ⏳ PyBaseball MLB data integration (planned)
+- ⏳ Player stats collection via PyBaseball (in progress - comprehensive MLB coverage)
 - ⏳ Advanced predictive analytics (planned)
 
 ## Critical Development Rules
@@ -383,6 +383,15 @@ Added `draft_results` module for annual draft data collection:
 - **D1 Integration**: Uses sync_to_production pattern for manual push
 - **Manual Process**: Keeper designation requires post-collection SQL updates
 
+### Player Stats Pipeline (August 2025)
+Implementing comprehensive MLB player statistics collection:
+- **Scope**: All ~750+ active MLB players daily (not limited to fantasy rosters)
+- **Data Source**: PyBaseball API (wraps Baseball Reference, FanGraphs, MLB Stats)
+- **Player IDs**: Maintains mapping across MLB, Yahoo, Baseball Reference, FanGraphs
+- **Features**: Daily game-by-game stats, calculated rate stats, historical backfill
+- **Architecture**: Follows established pattern (backfill + update + data quality)
+- **Volume**: ~135,000 records per season (750 players × 180 days)
+
 ### Key Fixes
 - League key for 2025: `458.l.6966` (not 449 or mlb prefixes)
 - Complete data extraction for all add/drop transaction movements
@@ -400,7 +409,7 @@ gkl-league-analytics/
 │   ├── league_transactions/       # Transaction processing
 │   ├── daily_lineups/            # Lineup collection
 │   ├── draft_results/            # Draft data collection
-│   ├── player_stats/             # MLB stats integration (planned)
+│   ├── player_stats/             # MLB stats integration (PyBaseball-based)
 │   └── common/                   # Shared utilities
 ├── cloudflare-production/        # Production deployment
 │   ├── src/                      # Workers API code

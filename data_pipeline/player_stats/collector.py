@@ -35,9 +35,7 @@ sys.path.insert(0, str(root_dir))
 from data_pipeline.player_stats.config import get_config_for_environment
 from data_pipeline.player_stats.pybaseball_integration import PyBaseballIntegration
 from data_pipeline.player_stats.player_id_mapper import PlayerIdMapper
-
-# Import job logging from existing system
-from data_pipeline.league_transactions.backfill_transactions_optimized import start_job_log, update_job_log
+from data_pipeline.player_stats.job_manager import PlayerStatsJobManager
 
 # Set up logging
 logging.basicConfig(
@@ -84,6 +82,7 @@ class PlayerStatsCollector:
         # Initialize integrations
         self.pybaseball = PyBaseballIntegration(environment)
         self.player_mapper = PlayerIdMapper(environment)
+        self.job_manager = PlayerStatsJobManager(environment)
         
         # Table names for this environment
         self.batting_staging_table = self.config['batting_staging_table']
@@ -111,13 +110,12 @@ class PlayerStatsCollector:
         logger.info(f"Starting daily stats collection for {target_date}")
         
         # Start job logging
-        job_id = start_job_log(
+        job_id = self.job_manager.start_job(
             job_type="player_stats_collection",
-            environment=self.environment,
             date_range_start=target_date.isoformat(),
             date_range_end=target_date.isoformat(),
             league_key="mlb",  # General MLB data collection
-            metadata=job_metadata or f"Daily stats collection for {target_date}"
+            metadata={"description": job_metadata or f"Daily stats collection for {target_date}"}
         )
         
         stats = CollectionStats()
@@ -147,7 +145,7 @@ class PlayerStatsCollector:
                 logger.info(f"Daily stats collection completed successfully for {target_date}")
                 logger.info(f"Processed {total_records} total records in {stats.processing_time_seconds:.1f}s")
                 
-                update_job_log(
+                self.job_manager.update_job(
                     job_id, 
                     'completed',
                     records_processed=stats.total_players_batting + stats.total_players_pitching,
@@ -155,10 +153,10 @@ class PlayerStatsCollector:
                 )
             else:
                 logger.error(f"Daily stats collection failed for {target_date}")
-                update_job_log(
+                self.job_manager.update_job(
                     job_id,
                     'failed', 
-                    error_message=f"Collection failed - batting: {batting_success}, pitching: {pitching_success}, processing: {processing_success}"
+                    error_msg=f"Collection failed - batting: {batting_success}, pitching: {pitching_success}, processing: {processing_success}"
                 )
             
             return job_id
@@ -166,7 +164,7 @@ class PlayerStatsCollector:
         except Exception as e:
             stats.end_time = datetime.now()
             logger.error(f"Daily stats collection failed with exception: {e}")
-            update_job_log(job_id, 'failed', error_message=str(e))
+            self.job_manager.update_job(job_id, 'failed', error_msg=str(e))
             raise
     
     def _collect_batting_stats(self, target_date: date, job_id: str, stats: CollectionStats) -> bool:

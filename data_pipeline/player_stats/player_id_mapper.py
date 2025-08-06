@@ -28,8 +28,8 @@ parent_dir = Path(__file__).parent
 root_dir = parent_dir.parent
 sys.path.insert(0, str(root_dir))
 
-from player_stats.config import get_config_for_environment
-from player_stats.pybaseball_integration import PyBaseballIntegration
+from data_pipeline.player_stats.config import get_config_for_environment
+from data_pipeline.player_stats.pybaseball_integration import PyBaseballIntegration
 
 # Set up logging
 logging.basicConfig(
