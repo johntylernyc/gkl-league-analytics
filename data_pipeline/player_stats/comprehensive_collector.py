@@ -391,7 +391,12 @@ class ComprehensiveStatsCollector:
             
             mapping = self._fetchone(result)
             if mapping:
-                all_stats.at[idx, 'yahoo_player_id'] = mapping[0]
+                # Ensure Yahoo ID is stored as integer string (no decimals)
+                yahoo_id = mapping[0]
+                if yahoo_id is not None:
+                    # Convert to int then string to remove any decimal
+                    yahoo_id = str(int(float(yahoo_id))) if yahoo_id else None
+                all_stats.at[idx, 'yahoo_player_id'] = yahoo_id
                 all_stats.at[idx, 'baseball_reference_id'] = mapping[1]
                 all_stats.at[idx, 'fangraphs_id'] = mapping[2]
             
