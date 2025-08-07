@@ -76,7 +76,22 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 
 ### 6. Release Documentation
 
-**For qualifying production deployments**, Claude must create user-facing release notes.
+**Public Release Notes (Website)**:
+
+The platform maintains user-facing release notes at `/release-notes` on the production website.
+
+**Updating Website Release Notes**:
+1. Edit `web-ui/frontend/src/data/releaseNotes.js`
+2. Add new release at TOP of array (newest first)
+3. Follow semantic versioning (MAJOR.MINOR.PATCH)
+4. Include 3-4 user-friendly bullet points in highlights
+5. Test locally at http://localhost:3000/release-notes
+
+**Versioning System**:
+- **MAJOR** (X.0.0): Breaking changes, major architecture shifts
+- **MINOR** (1.X.0): New features, significant improvements
+- **PATCH** (1.0.X): Bug fixes, minor improvements
+- Starting version: 1.0.0 (August 1, 2024)
 
 **Release Notes Required For**:
 - ✅ New features visible to users
@@ -86,21 +101,14 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 - ✅ Major bug fixes that restore broken functionality
 
 **Release Notes NOT Required For**:
-- ❌ Documentation updates (like this commit)
+- ❌ Documentation updates
 - ❌ Internal code refactoring with no user impact
 - ❌ Developer tooling changes
 - ❌ Configuration changes
-- ❌ Minor bug fixes or hotfixes (unless specifically requested)
+- ❌ Minor text corrections
 
-**Release Notes Format**:
-   - Write release notes in `docs/release-notes/`
-   - Format: `YYYY-MM-DD-feature-name.md`
-   - Use user-friendly language (not technical jargon)
-   - Include screenshots for UI changes when applicable
-   - **Required Links Section**:
-     - Link to related PRD: `../prds/prd-[feature-name].md`
-     - Link to implementation plan: `../development-docs/implemented/plan-[feature-name]-implementation-YYYY-MM.md`
-   - Follow template structure in `docs/release-notes/TEMPLATE.md`
+**Internal Documentation**:
+For detailed technical documentation, also create files in `docs/release-notes/` following the format `YYYY-MM-DD-feature-name.md`
 
 ### 7. Pre-Commit Security Review
 

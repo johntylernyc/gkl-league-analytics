@@ -18,6 +18,7 @@ GKL League Analytics is a production-ready system that collects, processes, and 
 - **Daily Lineups** - Historical roster decisions and position utilization
 - **Manager Analytics** - Compare strategies across teams
 - **Performance Timeline** - Visualize ownership patterns over time
+- **Release Notes** - Stay updated with new features and improvements at `/release-notes`
 
 ### Technical Capabilities
 - Real-time data synchronization with Yahoo Fantasy Sports API
@@ -25,6 +26,7 @@ GKL League Analytics is a production-ready system that collects, processes, and 
 - Comprehensive job logging and audit trails
 - Automated data collection with error recovery
 - Mobile-responsive interface
+- Semantic versioning with public release notes
 
 ## 🏗️ Architecture
 
@@ -412,6 +414,26 @@ mv .env.local.backup .env.local    # Restore for development
 🔔 Real-time notifications  
 👥 Multi-league support  
 
+## 📋 Versioning & Release Notes
+
+### Version System
+We follow **Semantic Versioning** (MAJOR.MINOR.PATCH):
+- **MAJOR**: Breaking changes, architecture shifts
+- **MINOR**: New features, significant improvements  
+- **PATCH**: Bug fixes, minor improvements
+
+**Current Version**: 1.4.0 (August 6, 2024)
+
+### Release Notes
+User-facing release notes are available at `/release-notes` on the production website. To update:
+
+1. Edit `web-ui/frontend/src/data/releaseNotes.js`
+2. Add new release at top of array
+3. Include 3-4 user-friendly highlights
+4. Test locally before deploying
+
+See [Release Notes Process](docs/permanent-docs/release-notes-process.md) for detailed guidelines.
+
 ## 📄 License
 
 This project is proprietary software developed for the GKL Fantasy Baseball League. Usage must comply with Yahoo Fantasy Sports API Terms of Service.
@@ -420,10 +442,11 @@ This project is proprietary software developed for the GKL Fantasy Baseball Leag
 
 - **Issues**: [GitHub Issues](https://github.com/[username]/gkl-league-analytics/issues)
 - **Documentation**: [Permanent Docs](docs/permanent-docs/)
+- **Release Notes**: [View Recent Updates](https://goldenknightlounge.com/release-notes)
 - **API Status**: Check `/api/health` endpoint
 
 ---
 
-**Version**: 2.0.0  
-**Last Updated**: August 2025  
+**Version**: 1.4.0  
+**Last Updated**: August 6, 2024  
 **Status**: Production

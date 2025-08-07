@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import DailyLineups from './pages/DailyLineups';
 import PlayerSpotlight from './pages/PlayerSpotlight';
 import PlayerExplorer from './pages/PlayerExplorer';
+import ReleaseNotesPage from './pages/ReleaseNotesPage';
 import './App.css';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
             <Route path="/players" element={<PlayerExplorer />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/managers" element={<Managers />} />
+            <Route path="/release-notes" element={<ReleaseNotesPage />} />
           </Routes>
         </Layout>
       </div>
