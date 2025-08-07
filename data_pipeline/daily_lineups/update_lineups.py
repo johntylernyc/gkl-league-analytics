@@ -351,7 +351,24 @@ class LineupUpdater:
             
             # Parse XML
             lineups = []
-            root = ET.fromstring(response.text)
+            
+            # Check if response is empty or not XML
+            if not response.text or response.text.strip() == '':
+                logger.warning(f"Empty response for {team_key} on {date}")
+                return lineups
+            
+            # Check if response starts with HTML (error page)
+            if response.text.strip().startswith('<!DOCTYPE') or response.text.strip().startswith('<html'):
+                logger.error(f"Received HTML error page instead of XML for {team_key} on {date}")
+                logger.debug(f"Response preview: {response.text[:500]}")
+                return lineups
+            
+            try:
+                root = ET.fromstring(response.text)
+            except ET.ParseError as e:
+                logger.error(f"XML parse error for {team_key} on {date}: {e}")
+                logger.debug(f"Response preview: {response.text[:500]}")
+                return lineups
             ns = {'y': 'http://fantasysports.yahooapis.com/fantasy/v2/base.rng'}
             
             # Get team name
@@ -518,11 +535,18 @@ class LineupUpdater:
             
             for team_key in team_keys:
                 # Fetch lineups for this team and date
-                lineups = self.fetch_and_parse_lineups(league_key, team_key, date_str)
-                
-                if lineups:
-                    all_lineups.extend(lineups)
-                    logger.debug(f"Found {len(lineups)} players for {team_key} on {date_str}")
+                try:
+                    lineups = self.fetch_and_parse_lineups(league_key, team_key, date_str)
+                    
+                    if lineups:
+                        all_lineups.extend(lineups)
+                        logger.debug(f"Found {len(lineups)} players for {team_key} on {date_str}")
+                except requests.exceptions.Timeout as e:
+                    logger.error(f"Timeout fetching lineups for {team_key} on {date_str}: {e}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error fetching lineups for {team_key} on {date_str}: {e}")
+                    continue
             
             self.stats['checked'] += 1
             current_date += timedelta(days=1)
