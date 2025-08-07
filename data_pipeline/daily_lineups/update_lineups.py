@@ -354,19 +354,19 @@ class LineupUpdater:
             
             # Check if response is empty or not XML
             if not response.text or response.text.strip() == '':
-                logger.warning(f"Empty response for {team_key} on {date}")
+                logger.warning(f"Empty response for {team_key} on {date_str}")
                 return lineups
             
             # Check if response starts with HTML (error page)
             if response.text.strip().startswith('<!DOCTYPE') or response.text.strip().startswith('<html'):
-                logger.error(f"Received HTML error page instead of XML for {team_key} on {date}")
+                logger.error(f"Received HTML error page instead of XML for {team_key} on {date_str}")
                 logger.debug(f"Response preview: {response.text[:500]}")
                 return lineups
             
             try:
                 root = ET.fromstring(response.text)
             except ET.ParseError as e:
-                logger.error(f"XML parse error for {team_key} on {date}: {e}")
+                logger.error(f"XML parse error for {team_key} on {date_str}: {e}")
                 logger.debug(f"Response preview: {response.text[:500]}")
                 return lineups
             ns = {'y': 'http://fantasysports.yahooapis.com/fantasy/v2/base.rng'}
