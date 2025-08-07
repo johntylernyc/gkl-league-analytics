@@ -6,6 +6,17 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent / 'data_pipeline'))
 
+# Load environment variables
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    # Try data_pipeline/.env
+    env_path = Path(__file__).parent.parent / 'data_pipeline' / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+
 from common.d1_connection import D1Connection
 import logging
 
