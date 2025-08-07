@@ -7,6 +7,32 @@
 
 export const releaseNotes = [
   {
+    id: "2024-08-07",
+    version: "1.5.0",
+    date: "August 7, 2024",
+    title: "Release Notes & Feedback System",
+    summary: "Introducing a public release notes page and user feedback mechanism",
+    highlights: [
+      "New release notes page at /release-notes showing version history and updates",
+      "Semantic versioning system (MAJOR.MINOR.PATCH) for tracking changes",
+      "Footer with GitHub issue reporting link for user feedback",
+      "Easy access via 'Updates' link in the navigation bar"
+    ],
+    details: {
+      features: [
+        "Public-facing release notes with expandable details",
+        "Chronological version history with highlights and technical details",
+        "Direct GitHub integration for issue reporting",
+        "Mobile-responsive release notes display"
+      ],
+      improvements: [
+        "Better communication of new features and updates to users",
+        "Standardized versioning following semantic versioning principles",
+        "Improved user engagement through feedback mechanism"
+      ]
+    }
+  },
+  {
     id: "2024-08-06",
     version: "1.4.0",
     date: "August 6, 2024",

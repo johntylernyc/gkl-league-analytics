@@ -422,7 +422,7 @@ We follow **Semantic Versioning** (MAJOR.MINOR.PATCH):
 - **MINOR**: New features, significant improvements  
 - **PATCH**: Bug fixes, minor improvements
 
-**Current Version**: 1.4.0 (August 6, 2024)
+**Current Version**: 1.5.0 (August 7, 2024)
 
 ### Release Notes
 User-facing release notes are available at `/release-notes` on the production website. To update:
@@ -447,6 +447,6 @@ This project is proprietary software developed for the GKL Fantasy Baseball Leag
 
 ---
 
-**Version**: 1.4.0  
-**Last Updated**: August 6, 2024  
+**Version**: 1.5.0  
+**Last Updated**: August 7, 2024  
 **Status**: Production
