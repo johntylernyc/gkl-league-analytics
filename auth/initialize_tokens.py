@@ -2,14 +2,19 @@ import requests
 import base64
 import json
 import os
-import config
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
 
 # === CONFIGURATION ===
-CLIENT_ID = config.CLIENT_ID
-CLIENT_SECRET = config.CLIENT_SECRET
-REDIRECT_URI = config.REDIRECT_URI
-AUTH_CODE = config.AUTHORIZATION_CODE  # Use authorization code from config.py
-TOKEN_URL = config.TOKEN_URL
+CLIENT_ID = os.getenv('YAHOO_CLIENT_ID')
+CLIENT_SECRET = os.getenv('YAHOO_CLIENT_SECRET')
+REDIRECT_URI = os.getenv('YAHOO_REDIRECT_URI', 'https://goldenknightlounge.com')
+AUTH_CODE = os.getenv('YAHOO_AUTHORIZATION_CODE')
+TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 
 # === Prepare Auth Header ===
 credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"

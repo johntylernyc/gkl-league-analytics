@@ -134,12 +134,13 @@ class PlayerStatsUpdater:
         
         logger.info(f"Updating stats from {start_date} to {end_date}")
         
-        # Initialize player mappings if needed
-        cursor = self.collector.conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM player_mapping")
-        if cursor.fetchone()[0] == 0:
-            logger.info("Initializing player mappings...")
-            self.collector.initialize_player_mappings()
+        # Initialize player mappings if needed (skip for D1 - handled separately)
+        if not self.use_d1:
+            cursor = self.collector.conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM player_mapping")
+            if cursor.fetchone()[0] == 0:
+                logger.info("Initializing player mappings...")
+                self.collector.initialize_player_mappings()
         
         # Collect stats for each date
         total_records = 0
@@ -169,8 +170,9 @@ class PlayerStatsUpdater:
         if refresh_yahoo:
             self.refresh_yahoo_ids()
         
-        # Update Yahoo IDs in daily stats
-        self._update_daily_stats_yahoo_ids()
+        # Update Yahoo IDs in daily stats (skip for D1)
+        if not self.use_d1:
+            self._update_daily_stats_yahoo_ids()
     
     def refresh_yahoo_ids(self):
         """Refresh Yahoo IDs for unmapped players"""
