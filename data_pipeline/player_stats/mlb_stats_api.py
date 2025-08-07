@@ -87,6 +87,20 @@ class MLBStatsAPI:
         data = self._make_request(f"/game/{game_id}/boxscore")
         return data
     
+    def get_player_info(self, player_id: int) -> Optional[Dict]:
+        """Get player information including position."""
+        data = self._make_request(f"/people/{player_id}")
+        if data and 'people' in data and data['people']:
+            return data['people'][0]
+        return None
+    
+    def get_player_position(self, player_id: int) -> str:
+        """Get player's primary position abbreviation."""
+        player_info = self.get_player_info(player_id)
+        if player_info and 'primaryPosition' in player_info:
+            return player_info['primaryPosition'].get('abbreviation', '')
+        return ''
+    
     def get_player_game_stats(self, game_id: int, player_id: int) -> Dict[str, Any]:
         """Get a specific player's stats from a game."""
         boxscore = self.get_game_boxscore(game_id)

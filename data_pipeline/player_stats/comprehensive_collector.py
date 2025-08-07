@@ -378,8 +378,16 @@ class ComprehensiveStatsCollector:
         # Add date
         all_stats['date'] = target_date
         
-        # Enrich with player IDs from mapping table        
+        # Initialize position_codes column
+        all_stats['position_codes'] = ''
+        
+        # Import MLB API for position fetching
+        from data_pipeline.player_stats.mlb_stats_api import MLBStatsAPI
+        mlb_api = MLBStatsAPI()
+        
+        # Enrich with player IDs and position from mapping table and MLB API       
         for idx, row in all_stats.iterrows():
+            # Get mapping info
             result = self._execute_query("""
                 SELECT yahoo_player_id, baseball_reference_id, fangraphs_id
                 FROM player_mapping
@@ -391,6 +399,14 @@ class ComprehensiveStatsCollector:
                 all_stats.at[idx, 'yahoo_player_id'] = mapping[0]
                 all_stats.at[idx, 'baseball_reference_id'] = mapping[1]
                 all_stats.at[idx, 'fangraphs_id'] = mapping[2]
+            
+            # Get position from MLB API
+            try:
+                position = mlb_api.get_player_position(row['mlb_id'])
+                if position:
+                    all_stats.at[idx, 'position_codes'] = position
+            except Exception as e:
+                logger.debug(f"Could not fetch position for player {row['mlb_id']}: {e}")
         
         return all_stats
     
