@@ -61,7 +61,7 @@ class PlayerStatsUpdater:
         self.use_d1 = use_d1
         
         # Initialize components
-        self.collector = ComprehensiveStatsCollector(environment=environment)
+        self.collector = ComprehensiveStatsCollector(environment=environment, use_d1=use_d1)
         self.yahoo_matcher = YahooIDMatcher(environment=environment)
         self.yahoo_search = YahooPlayerSearch(environment=environment)
         
