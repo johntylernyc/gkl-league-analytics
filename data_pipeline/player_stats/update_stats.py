@@ -290,6 +290,11 @@ class PlayerStatsUpdater:
     
     def show_summary(self):
         """Show summary statistics"""
+        # Skip summary when using D1 (no local tables to query)
+        if self.use_d1:
+            logger.info("Summary skipped when using D1 direct write")
+            return
+            
         cursor = self.collector.conn.cursor()
         
         # Player mapping stats

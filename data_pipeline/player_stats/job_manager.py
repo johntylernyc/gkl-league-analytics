@@ -106,16 +106,29 @@ class PlayerStatsJobManager:
     job logging infrastructure.
     """
     
-    def __init__(self, environment: str = "production"):
+    def __init__(self, environment: str = "production", use_d1: bool = False):
         """
         Initialize the job manager.
         
         Args:
             environment: 'production' or 'test'
+            use_d1: If True, use Cloudflare D1 instead of SQLite
         """
         self.environment = environment
+        self.use_d1 = use_d1
         self.config = get_config_for_environment(environment)
-        self.db_path = self.config['database_path']
+        
+        # Database connection
+        if use_d1:
+            from data_pipeline.common.d1_connection import D1Connection
+            self.d1_conn = D1Connection()
+            self.conn = None
+            logger.info("Using Cloudflare D1 for job logging")
+        else:
+            self.db_path = self.config['database_path']
+            self.conn = None
+            self.d1_conn = None
+            logger.info(f"Using SQLite database: {self.db_path}")
         
         # Job types we manage
         self.managed_job_types = [
@@ -126,7 +139,6 @@ class PlayerStatsJobManager:
         ]
         
         logger.info(f"Initialized PlayerStatsJobManager for {environment} environment")
-        logger.info(f"Database: {self.db_path}")
     
     def start_job(self, job_type: str, date_range_start: str, date_range_end: str,
                   league_key: str = None, metadata: Dict = None) -> str:
@@ -146,24 +158,39 @@ class PlayerStatsJobManager:
         import uuid
         job_id = str(uuid.uuid4())
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        if self.use_d1:
+            # Use D1 connection
+            self.d1_conn.ensure_job_exists(
+                job_id=job_id,
+                job_type=job_type,
+                environment=self.environment,
+                league_key=league_key,
+                date_range_start=date_range_start,
+                date_range_end=date_range_end,
+                metadata=json.dumps(metadata) if metadata else None
+            )
+            logger.info(f"Started job in D1: {job_id} ({job_type})")
+        else:
+            # Use SQLite
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute('''
+                    INSERT INTO job_log (job_id, job_type, environment, status, 
+                                        date_range_start, date_range_end, league_key, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (job_id, job_type, self.environment, 'running', 
+                      date_range_start, date_range_end, league_key, 
+                      json.dumps(metadata) if metadata else None))
+                conn.commit()
+                
+                logger.info(f"Started job: {job_id} ({job_type})")
+                
+            finally:
+                conn.close()
         
-        try:
-            cursor.execute('''
-                INSERT INTO job_log (job_id, job_type, environment, status, 
-                                    date_range_start, date_range_end, league_key, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (job_id, job_type, self.environment, 'running', 
-                  date_range_start, date_range_end, league_key, 
-                  json.dumps(metadata) if metadata else None))
-            conn.commit()
-            
-            logger.info(f"Started job: {job_id} ({job_type})")
-            return job_id
-            
-        finally:
-            conn.close()
+        return job_id
     
     def update_job(self, job_id: str, status: str, records_processed: int = None,
                    records_inserted: int = None, error_msg: str = None, 
@@ -179,43 +206,55 @@ class PlayerStatsJobManager:
             error_msg: Error message if failed
             metadata: Additional metadata to merge
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        try:
-            # Get existing metadata
-            cursor.execute('SELECT metadata FROM job_log WHERE job_id = ?', (job_id,))
-            result = cursor.fetchone()
-            existing_metadata = {}
-            if result and result[0]:
-                try:
-                    existing_metadata = json.loads(result[0])
-                except:
-                    pass
+        if self.use_d1:
+            # Use D1 connection
+            self.d1_conn.update_job_status(
+                job_id=job_id,
+                status=status,
+                records_processed=records_processed,
+                records_inserted=records_inserted,
+                error_message=error_msg
+            )
+            logger.info(f"Updated job in D1 {job_id}: {status}")
+        else:
+            # Use SQLite
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            # Merge metadata
-            if metadata:
-                existing_metadata.update(metadata)
-            
-            # Update job
-            cursor.execute('''
-                UPDATE job_log 
-                SET status = ?,
-                    records_processed = COALESCE(?, records_processed),
-                    records_inserted = COALESCE(?, records_inserted),
-                    error_message = COALESCE(?, error_message),
-                    metadata = ?,
-                    end_time = CASE WHEN ? IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE end_time END
-                WHERE job_id = ?
-            ''', (status, records_processed, records_inserted, error_msg,
-                  json.dumps(existing_metadata) if existing_metadata else None,
-                  status, job_id))
-            
-            conn.commit()
-            logger.info(f"Updated job {job_id}: {status}")
-            
-        finally:
-            conn.close()
+            try:
+                # Get existing metadata
+                cursor.execute('SELECT metadata FROM job_log WHERE job_id = ?', (job_id,))
+                result = cursor.fetchone()
+                existing_metadata = {}
+                if result and result[0]:
+                    try:
+                        existing_metadata = json.loads(result[0])
+                    except:
+                        pass
+                
+                # Merge metadata
+                if metadata:
+                    existing_metadata.update(metadata)
+                
+                # Update job
+                cursor.execute('''
+                    UPDATE job_log 
+                    SET status = ?,
+                        records_processed = COALESCE(?, records_processed),
+                        records_inserted = COALESCE(?, records_inserted),
+                        error_message = COALESCE(?, error_message),
+                        metadata = ?,
+                        end_time = CASE WHEN ? IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE end_time END
+                    WHERE job_id = ?
+                ''', (status, records_processed, records_inserted, error_msg,
+                      json.dumps(existing_metadata) if existing_metadata else None,
+                      status, job_id))
+                
+                conn.commit()
+                logger.info(f"Updated job {job_id}: {status}")
+                
+            finally:
+                conn.close()
     
     def get_job_summary(self, job_id: str) -> Optional[JobSummary]:
         """

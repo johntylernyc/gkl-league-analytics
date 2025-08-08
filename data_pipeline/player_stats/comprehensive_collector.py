@@ -51,7 +51,7 @@ class ComprehensiveStatsCollector:
             self.d1_conn = None
             logger.info(f"Using SQLite database: {self.config['database_path']}")
         
-        self.job_manager = PlayerStatsJobManager(environment=environment)
+        self.job_manager = PlayerStatsJobManager(environment=environment, use_d1=use_d1)
         self.pybaseball_integration = PyBaseballIntegration(environment)
         
         # Initialize pybaseball
