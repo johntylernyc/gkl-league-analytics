@@ -82,14 +82,18 @@ class ComprehensiveStatsCollector:
     def _fetchone(self, cursor_or_result) -> tuple:
         """Fetch one result"""
         if self.use_d1:
-            return cursor_or_result.fetchone()
+            # D1 returns a dict with 'results' key
+            results = cursor_or_result.get('results', [])
+            return tuple(results[0]) if results else None
         else:
             return cursor_or_result.fetchone()
     
     def _fetchall(self, cursor_or_result) -> List[tuple]:
         """Fetch all results"""
         if self.use_d1:
-            return cursor_or_result.fetchall()
+            # D1 returns a dict with 'results' key
+            results = cursor_or_result.get('results', [])
+            return [tuple(row) for row in results]
         else:
             return cursor_or_result.fetchall()
     
@@ -381,7 +385,7 @@ class ComprehensiveStatsCollector:
         # Initialize position_codes column
         all_stats['position_codes'] = ''
         
-        # Enrich with player IDs from mapping table        
+        # Enrich with player IDs from mapping table
         for idx, row in all_stats.iterrows():
             result = self._execute_query("""
                 SELECT yahoo_player_id, baseball_reference_id, fangraphs_id
