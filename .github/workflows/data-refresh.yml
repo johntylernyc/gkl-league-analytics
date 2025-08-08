@@ -264,6 +264,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests python-dotenv pybaseball pandas
       
+      - name: Initialize player mappings in local database
+        run: |
+          echo "Initializing player mappings in local SQLite database..."
+          python -c "
+import sys
+sys.path.append('.')
+from data_pipeline.player_stats.comprehensive_collector import ComprehensiveStatsCollector
+collector = ComprehensiveStatsCollector(environment='production', use_d1=False)
+import sqlite3
+conn = sqlite3.connect('database/league_analytics.db')
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(*) FROM player_mapping')
+count = cursor.fetchone()[0]
+if count == 0:
+    print('No player mappings found, initializing...')
+    collector.initialize_player_mappings()
+    cursor.execute('SELECT COUNT(*) FROM player_mapping')
+    new_count = cursor.fetchone()[0]
+    print(f'Initialized {new_count} player mappings')
+else:
+    print(f'Found {count} existing player mappings')
+conn.close()
+"
+      
+      - name: Sync player mappings to D1
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          echo "Syncing player mappings to D1..."
+          python data_pipeline/player_stats/sync_player_mappings_to_d1.py --environment production || true
+      
       - name: Run stats incremental update
         env:
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
