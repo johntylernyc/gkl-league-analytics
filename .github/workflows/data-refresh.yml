@@ -239,8 +239,9 @@ jobs:
 # Player stats refresh enabled for comprehensive MLB player statistics
   refresh-stats:
     name: Refresh Player Stats
-    needs: [determine-refresh-params, refresh-transactions, refresh-lineups]
+    needs: [determine-refresh-params]
     runs-on: ubuntu-latest
+    if: always()  # Run even if lineups fail
     
     steps:
       - name: Checkout code
