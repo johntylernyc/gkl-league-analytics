@@ -154,10 +154,7 @@ class PlayerStatsUpdater:
                 records = self.collector.collect_daily_stats(date_str)
                 total_records += records
                 logger.info(f"  Collected {records} player records")
-                
-                # Write to D1 if enabled
-                if self.use_d1 and records > 0:
-                    self._write_to_d1(date_str)
+                # Note: When use_d1 is True, the collector writes directly to D1
                     
             except Exception as e:
                 logger.error(f"  Error collecting stats for {date_str}: {e}")
@@ -176,6 +173,11 @@ class PlayerStatsUpdater:
     
     def refresh_yahoo_ids(self):
         """Refresh Yahoo IDs for unmapped players"""
+        # Skip when using D1 (no local database to query)
+        if self.use_d1:
+            logger.info("Yahoo ID refresh skipped when using D1")
+            return
+            
         logger.info("Refreshing Yahoo IDs...")
         
         cursor = self.collector.conn.cursor()
@@ -258,35 +260,6 @@ class PlayerStatsUpdater:
         except Exception as e:
             logger.error(f"Error updating Yahoo IDs: {e}")
     
-    def _write_to_d1(self, date_str: str):
-        """Write collected data to D1"""
-        try:
-            cursor = self.collector.conn.cursor()
-            
-            # Get daily stats for this date
-            cursor.execute(
-                "SELECT * FROM daily_gkl_player_stats WHERE date = ?",
-                (date_str,)
-            )
-            stats = cursor.fetchall()
-            
-            if stats:
-                # Write in chunks to respect D1 limits
-                chunk_size = 50
-                for i in range(0, len(stats), chunk_size):
-                    chunk = stats[i:i+chunk_size]
-                    placeholders = ",".join(["(?" + ",?" * (len(chunk[0])-1) + ")"] * len(chunk))
-                    values = [item for row in chunk for item in row]
-                    
-                    self.d1_conn.execute(
-                        f"INSERT OR REPLACE INTO daily_gkl_player_stats VALUES {placeholders}",
-                        values
-                    )
-                
-                logger.info(f"  Wrote {len(stats)} records to D1")
-                
-        except Exception as e:
-            logger.error(f"Error writing to D1: {e}")
     
     def show_summary(self):
         """Show summary statistics"""
