@@ -146,8 +146,16 @@ class YahooTokenManager:
             with open(self.token_file, 'w') as f:
                 json.dump(tokens, f, indent=4)
     
-    def get_access_token(self) -> str:
-        """Get a valid access token, refreshing if necessary."""
+    def get_access_token(self, force_refresh: bool = False) -> str:
+        """Get a valid access token, refreshing if necessary.
+        
+        Args:
+            force_refresh: Force a token refresh even if current token appears valid
+        """
+        # Force refresh if requested (e.g., after 401 error)
+        if force_refresh:
+            return self._refresh_access_token()
+        
         # Check if we have a valid access token
         if self.tokens.get('access_token') and self.tokens.get('expires_at'):
             expires_at = datetime.fromisoformat(self.tokens['expires_at'])

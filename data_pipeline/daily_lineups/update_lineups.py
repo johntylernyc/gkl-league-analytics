@@ -33,6 +33,7 @@ import argparse
 import logging
 import sqlite3
 import sys
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -69,6 +70,8 @@ logger = logging.getLogger(__name__)
 BASE_FANTASY_URL = 'https://fantasysports.yahooapis.com/fantasy/v2'
 DEFAULT_LOOKBACK_DAYS = 7
 MAX_LOOKBACK_DAYS = 30
+MAX_RETRIES = 3
+RATES_PER_MINUTE = 20  # Yahoo rate limit
 
 
 class LineupUpdater:
@@ -86,6 +89,8 @@ class LineupUpdater:
         self.token_manager = YahooTokenManager()
         self.quality_checker = LineupDataQualityChecker()
         self.parser = LineupParser()
+        self.last_request_time = 0
+        self.request_count = 0
         
         # Determine database type
         if use_d1 is None:
@@ -211,6 +216,64 @@ class LineupUpdater:
                 return datetime.strptime(result[0], '%Y-%m-%d')
             return None
     
+    def _rate_limit(self):
+        """Implement rate limiting to avoid Yahoo API throttling."""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        
+        # Reset counter if it's been more than a minute
+        if time_since_last > 60:
+            self.request_count = 0
+        
+        # If we've hit the rate limit, wait
+        if self.request_count >= RATES_PER_MINUTE:
+            sleep_time = 60 - time_since_last
+            if sleep_time > 0:
+                logger.debug(f"Rate limiting: sleeping for {sleep_time:.1f} seconds")
+                time.sleep(sleep_time)
+                self.request_count = 0
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+    
+    def _make_request_with_retry(self, url: str, max_retries: int = MAX_RETRIES) -> requests.Response:
+        """Make HTTP request with retry logic and token refresh."""
+        for attempt in range(max_retries):
+            self._rate_limit()
+            
+            # Get fresh token (will refresh if needed)
+            force_refresh = attempt > 0  # Force refresh on retry
+            headers = {
+                'Authorization': f'Bearer {self.token_manager.get_access_token(force_refresh=force_refresh)}',
+                'Accept': 'application/xml'
+            }
+            
+            try:
+                response = requests.get(url, headers=headers, timeout=30)
+                
+                if response.status_code == 401:
+                    logger.warning(f"401 Unauthorized on attempt {attempt + 1}, will retry with fresh token")
+                    if attempt < max_retries - 1:
+                        continue
+                
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout on attempt {attempt + 1} of {max_retries}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+                raise
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request error on attempt {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+        
+        raise Exception(f"Failed after {max_retries} attempts")
+    
     def get_all_team_keys(self, league_key: str) -> List[str]:
         """
         Get all team keys for a league.
@@ -222,14 +285,9 @@ class LineupUpdater:
             List of team keys
         """
         url = f"{BASE_FANTASY_URL}/league/{league_key}/teams"
-        headers = {
-            'Authorization': f'Bearer {self.token_manager.get_access_token()}',
-            'Accept': 'application/xml'
-        }
         
         try:
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
+            response = self._make_request_with_retry(url)
             
             root = ET.fromstring(response.text)
             ns = {'y': 'http://fantasysports.yahooapis.com/fantasy/v2/base.rng'}
@@ -340,14 +398,9 @@ class LineupUpdater:
             List of lineup dictionaries
         """
         url = f"{BASE_FANTASY_URL}/team/{team_key}/roster;date={date_str}"
-        headers = {
-            'Authorization': f'Bearer {self.token_manager.get_access_token()}',
-            'Accept': 'application/xml'
-        }
         
         try:
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
+            response = self._make_request_with_retry(url)
             
             # Parse XML
             lineups = []
