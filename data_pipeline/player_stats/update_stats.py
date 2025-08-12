@@ -30,6 +30,10 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime, date, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add parent directories to path
 sys.path.append(str(Path(__file__).parent.parent.parent))

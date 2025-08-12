@@ -387,19 +387,23 @@ class ComprehensiveStatsCollector:
         
         # Enrich with player IDs from mapping table
         for idx, row in all_stats.iterrows():
-            result = self._execute_query("""
+            # Use mlb_player_id for D1 (since we added that column), mlb_id for local
+            mlb_column = 'mlb_player_id' if self.use_d1 else 'mlb_id'
+            result = self._execute_query(f"""
                 SELECT yahoo_player_id, baseball_reference_id, fangraphs_id
                 FROM player_mapping
-                WHERE mlb_id = ?
+                WHERE {mlb_column} = ?
             """, (row['mlb_id'],))
             
             mapping = self._fetchone(result)
             if mapping:
-                # Ensure Yahoo ID is stored as integer string (no decimals)
+                # Handle Yahoo ID - it's already a string in the database
                 yahoo_id = mapping[0]
-                if yahoo_id is not None:
-                    # Convert to int then string to remove any decimal
-                    yahoo_id = str(int(float(yahoo_id))) if yahoo_id else None
+                if yahoo_id is not None and str(yahoo_id).strip() and str(yahoo_id) != 'None':
+                    # Yahoo IDs are already strings like "10794", just use them as is
+                    yahoo_id = str(yahoo_id).strip()
+                else:
+                    yahoo_id = None
                 all_stats.at[idx, 'yahoo_player_id'] = yahoo_id
                 all_stats.at[idx, 'baseball_reference_id'] = mapping[1]
                 all_stats.at[idx, 'fangraphs_id'] = mapping[2]
@@ -544,8 +548,9 @@ class ComprehensiveStatsCollector:
         records_saved = 0
         
         # Define columns based on environment schema
-        if self.environment == 'production':
-            # Production database schema
+        # Note: D1 production now uses mlb_player_id consistently
+        if self.environment == 'production' or self.use_d1:
+            # Production/D1 database schema
             columns = [
                 'job_id', 'date', 'mlb_player_id', 'yahoo_player_id', 'baseball_reference_id', 'fangraphs_id',
                 'player_name', 'team_code', 'position_codes', 'games_played',
@@ -622,16 +627,32 @@ class ComprehensiveStatsCollector:
                     elif col == 'games_played':
                         values.append(row.get(col, 1))
                     else:
-                        values.append(row.get(col, 0))
+                        # Handle NaN values for D1 compatibility
+                        value = row.get(col, 0)
+                        if pd.isna(value) or (isinstance(value, float) and np.isnan(value)):
+                            # Replace NaN with None for NULL in database
+                            value = None
+                        values.append(value)
                 
                 if self.use_d1:
-                    self.d1_conn.execute(insert_query, values)
+                    try:
+                        result = self.d1_conn.execute(insert_query, values)
+                        if result and result.get('success', False):
+                            records_saved += 1
+                        else:
+                            logger.error(f"D1 insert failed for {row.get('player_name')}: {result}")
+                    except Exception as d1_error:
+                        logger.error(f"D1 error for {row.get('player_name')}: {d1_error}")
+                        logger.debug(f"Query: {insert_query[:100]}...")
+                        logger.debug(f"Values count: {len(values)}, Columns count: {len(columns)}")
+                        raise
                 else:
                     cursor.execute(insert_query, values)
-                records_saved += 1
+                    records_saved += 1
                 
             except Exception as e:
                 logger.error(f"Error saving stats for {row.get('player_name')}: {e}")
+                logger.debug(f"Row data: mlb_id={row.get('mlb_id')}, player={row.get('player_name')}")
         
         self._commit()
         return records_saved
