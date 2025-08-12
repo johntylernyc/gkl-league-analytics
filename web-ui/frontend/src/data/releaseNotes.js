@@ -7,6 +7,39 @@
 
 export const releaseNotes = [
   {
+    id: "2024-08-12",
+    version: "1.6.0",
+    date: "August 12, 2024",
+    title: "Data Pipeline Restoration & Player ID Mapping",
+    summary: "Complete fix for broken data pipelines with comprehensive player ID mapping",
+    highlights: [
+      "Fixed critical player stats pipeline that was silently failing due to column name mismatches",
+      "Successfully synced 2,011 player mappings with Yahoo, Baseball Reference, and FanGraphs IDs",
+      "Resolved GitHub Actions workflow issues preventing manual triggers and scheduled runs",
+      "Player stats now properly enriched with cross-platform IDs enabling complete player profiles"
+    ],
+    details: {
+      features: [
+        "Individual insert operations for D1 to avoid SQL variable limits",
+        "Comprehensive data quality monitoring script for all pipelines",
+        "Player mapping synchronization between local and production databases",
+        "Enhanced error handling with detailed logging for debugging"
+      ],
+      improvements: [
+        "Fixed mlb_id vs mlb_player_id column name inconsistencies",
+        "Resolved NaN values breaking D1 JSON serialization",
+        "Corrected YAML syntax issues in GitHub Actions workflows",
+        "Cleaned up 360 records with literal string IDs instead of proper values"
+      ],
+      bugFixes: [
+        "Fixed 'too many SQL variables' error limiting player mapping sync to 237 records",
+        "Resolved Yahoo player IDs showing as NULL in daily stats",
+        "Fixed baseball_reference_id and fangraphs_id storing literal string values",
+        "Corrected GitHub Actions 'on' keyword being interpreted as boolean"
+      ]
+    }
+  },
+  {
     id: "2024-08-07",
     version: "1.5.0",
     date: "August 7, 2024",
