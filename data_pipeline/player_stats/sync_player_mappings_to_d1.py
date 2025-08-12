@@ -122,51 +122,55 @@ def sync_mappings_to_d1(d1_conn: D1Connection, mappings: List[Dict]):
     except Exception as e:
         logger.warning(f"Error clearing existing mappings (may not exist): {e}")
     
-    # Insert mappings in batches
-    batch_size = 50
+    # Insert mappings individually to avoid SQL variable limits
+    # D1 has strict limits on SQL variables per query
     total_inserted = 0
+    errors = 0
     
-    for i in range(0, len(mappings), batch_size):
-        batch = mappings[i:i+batch_size]
-        
-        # Build INSERT statement
-        placeholders = ",".join(["(?,?,?,?,?,?,?,?,?,?,?,?)"] * len(batch))
-        insert_sql = f"""
-            INSERT INTO player_mapping (
+    logger.info(f"Starting to sync {len(mappings)} player mappings individually...")
+    
+    for idx, mapping in enumerate(mappings):
+        # Use REPLACE to handle any duplicates
+        insert_sql = """
+            REPLACE INTO player_mapping (
                 mlb_id, yahoo_player_id, baseball_reference_id, fangraphs_id,
                 player_name, first_name, last_name, team_code,
                 active, last_verified, created_at, updated_at
-            ) VALUES {placeholders}
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
-        # Flatten values
-        values = []
-        for mapping in batch:
-            values.extend([
-                mapping.get('mlb_id'),
-                mapping.get('yahoo_player_id'),
-                mapping.get('baseball_reference_id'),
-                mapping.get('fangraphs_id'),
-                mapping.get('player_name'),
-                mapping.get('first_name'),
-                mapping.get('last_name'),
-                mapping.get('team_code'),
-                mapping.get('active', 1),
-                mapping.get('last_verified'),
-                mapping.get('created_at'),
-                mapping.get('updated_at')
-            ])
+        values = [
+            mapping.get('mlb_id'),
+            mapping.get('yahoo_player_id'),
+            mapping.get('baseball_reference_id'),
+            mapping.get('fangraphs_id'),
+            mapping.get('player_name'),
+            mapping.get('first_name'),
+            mapping.get('last_name'),
+            mapping.get('team_code'),
+            mapping.get('active', 1),
+            mapping.get('last_verified'),
+            mapping.get('created_at'),
+            mapping.get('updated_at')
+        ]
         
         try:
             result = d1_conn.execute(insert_sql, values)
-            inserted = result.get('changes', 0)
-            total_inserted += inserted
-            logger.info(f"Inserted batch {i//batch_size + 1}: {inserted} mappings")
+            total_inserted += 1
             
+            # Log progress every 100 records
+            if (idx + 1) % 100 == 0:
+                logger.info(f"Progress: {idx + 1}/{len(mappings)} mappings synced")
+                
         except Exception as e:
-            logger.error(f"Error inserting batch {i//batch_size + 1}: {e}")
+            errors += 1
+            logger.error(f"Error inserting mapping for {mapping.get('player_name')} (MLB ID {mapping.get('mlb_id')}): {e}")
+            # Continue with next record
+            if errors > 50:  # Stop if too many errors
+                logger.error("Too many errors, stopping sync")
+                break
     
-    logger.info(f"Successfully synced {total_inserted} player mappings to D1")
+    logger.info(f"Successfully synced {total_inserted} player mappings to D1 ({errors} errors)")
     
     # Verify the sync
     result = d1_conn.execute("SELECT COUNT(*) as count FROM player_mapping")
@@ -228,8 +232,23 @@ def main():
         logger.error("  CLOUDFLARE_ACCOUNT_ID, D1_DATABASE_ID, CLOUDFLARE_API_TOKEN")
         return
     
-    # Create table if needed
+    # Create table if needed (with mlb_player_id column)
     create_player_mapping_table_d1(d1_conn)
+    
+    # Add mlb_player_id column if missing (for backward compatibility)
+    try:
+        d1_conn.execute("ALTER TABLE player_mapping ADD COLUMN mlb_player_id INTEGER")
+        logger.info("Added mlb_player_id column to player_mapping table")
+    except Exception as e:
+        # Column likely already exists
+        pass
+    
+    # Update mlb_player_id to match mlb_id if needed
+    try:
+        d1_conn.execute("UPDATE player_mapping SET mlb_player_id = mlb_id WHERE mlb_player_id IS NULL")
+        logger.info("Updated mlb_player_id values from mlb_id")
+    except Exception as e:
+        logger.debug(f"Could not update mlb_player_id: {e}")
     
     # Sync mappings
     sync_mappings_to_d1(d1_conn, mappings)
