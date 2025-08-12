@@ -407,6 +407,11 @@ class ComprehensiveStatsCollector:
                 all_stats.at[idx, 'yahoo_player_id'] = yahoo_id
                 all_stats.at[idx, 'baseball_reference_id'] = mapping[1]
                 all_stats.at[idx, 'fangraphs_id'] = mapping[2]
+            else:
+                # Player not found in mapping - set to None instead of leaving undefined
+                all_stats.at[idx, 'yahoo_player_id'] = None
+                all_stats.at[idx, 'baseball_reference_id'] = None
+                all_stats.at[idx, 'fangraphs_id'] = None
             
             # Try to infer position from player's role in the game
             # Pitchers will have pitching stats, others are position players
