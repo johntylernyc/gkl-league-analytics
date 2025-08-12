@@ -269,22 +269,96 @@ jobs:
           echo "Initializing player mappings in local SQLite database..."
           python -c '
           import sys
-          sys.path.append(".")
-          from data_pipeline.player_stats.comprehensive_collector import ComprehensiveStatsCollector
-          collector = ComprehensiveStatsCollector(environment="production", use_d1=False)
+          import os
           import sqlite3
+          sys.path.append(".")
+          
+          # Ensure database directory exists
+          os.makedirs("database", exist_ok=True)
+          
+          # Connect to database
           conn = sqlite3.connect("database/league_analytics.db")
           cursor = conn.cursor()
+          
+          # Create player_mapping table if it doesn''t exist
+          cursor.execute("""
+              CREATE TABLE IF NOT EXISTS player_mapping (
+                  player_mapping_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  mlb_id INTEGER,
+                  mlb_player_id INTEGER,
+                  yahoo_player_id TEXT,
+                  baseball_reference_id TEXT,
+                  fangraphs_id TEXT,
+                  player_name TEXT,
+                  first_name TEXT,
+                  last_name TEXT,
+                  team_code TEXT,
+                  active BOOLEAN DEFAULT 1,
+                  last_verified TIMESTAMP,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              )
+          """)
+          
+          # Create job_log table if it doesn''t exist (required by comprehensive_collector)
+          cursor.execute("""
+              CREATE TABLE IF NOT EXISTS job_log (
+                  job_id TEXT PRIMARY KEY,
+                  job_type TEXT NOT NULL,
+                  status TEXT NOT NULL,
+                  environment TEXT,
+                  start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  end_time TIMESTAMP,
+                  date_range_start TEXT,
+                  date_range_end TEXT,
+                  records_processed INTEGER,
+                  records_inserted INTEGER,
+                  error_message TEXT,
+                  metadata TEXT,
+                  league_key TEXT
+              )
+          """)
+          
+          # Create daily_gkl_player_stats table if it doesn''t exist
+          cursor.execute("""
+              CREATE TABLE IF NOT EXISTS daily_gkl_player_stats (
+                  stat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  job_id TEXT,
+                  date DATE NOT NULL,
+                  mlb_player_id INTEGER,
+                  yahoo_player_id TEXT,
+                  baseball_reference_id TEXT,
+                  fangraphs_id TEXT,
+                  player_name TEXT NOT NULL,
+                  team_code TEXT,
+                  position_codes TEXT,
+                  games_played INTEGER DEFAULT 0,
+                  data_source TEXT,
+                  has_batting_data BOOLEAN DEFAULT 0,
+                  has_pitching_data BOOLEAN DEFAULT 0,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  UNIQUE(date, mlb_player_id)
+              )
+          """)
+          
+          conn.commit()
+          
+          # Now check if we need to populate player_mapping
           cursor.execute("SELECT COUNT(*) FROM player_mapping")
           count = cursor.fetchone()[0]
+          
           if count == 0:
               print("No player mappings found, initializing...")
+              from data_pipeline.player_stats.comprehensive_collector import ComprehensiveStatsCollector
+              collector = ComprehensiveStatsCollector(environment="production", use_d1=False)
               collector.initialize_player_mappings()
               cursor.execute("SELECT COUNT(*) FROM player_mapping")
               new_count = cursor.fetchone()[0]
               print(f"Initialized {new_count} player mappings")
           else:
               print(f"Found {count} existing player mappings")
+          
           conn.close()
           '
       
