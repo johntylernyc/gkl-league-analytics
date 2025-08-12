@@ -1,6 +1,6 @@
 name: Scheduled Data Refresh
 
-on:
+'on':
   # Allow manual trigger with inputs
   workflow_dispatch:
     inputs:
@@ -267,26 +267,26 @@ jobs:
       - name: Initialize player mappings in local database
         run: |
           echo "Initializing player mappings in local SQLite database..."
-          python -c "
-import sys
-sys.path.append('.')
-from data_pipeline.player_stats.comprehensive_collector import ComprehensiveStatsCollector
-collector = ComprehensiveStatsCollector(environment='production', use_d1=False)
-import sqlite3
-conn = sqlite3.connect('database/league_analytics.db')
-cursor = conn.cursor()
-cursor.execute('SELECT COUNT(*) FROM player_mapping')
-count = cursor.fetchone()[0]
-if count == 0:
-    print('No player mappings found, initializing...')
-    collector.initialize_player_mappings()
-    cursor.execute('SELECT COUNT(*) FROM player_mapping')
-    new_count = cursor.fetchone()[0]
-    print(f'Initialized {new_count} player mappings')
-else:
-    print(f'Found {count} existing player mappings')
-conn.close()
-"
+          python -c '
+          import sys
+          sys.path.append(".")
+          from data_pipeline.player_stats.comprehensive_collector import ComprehensiveStatsCollector
+          collector = ComprehensiveStatsCollector(environment="production", use_d1=False)
+          import sqlite3
+          conn = sqlite3.connect("database/league_analytics.db")
+          cursor = conn.cursor()
+          cursor.execute("SELECT COUNT(*) FROM player_mapping")
+          count = cursor.fetchone()[0]
+          if count == 0:
+              print("No player mappings found, initializing...")
+              collector.initialize_player_mappings()
+              cursor.execute("SELECT COUNT(*) FROM player_mapping")
+              new_count = cursor.fetchone()[0]
+              print(f"Initialized {new_count} player mappings")
+          else:
+              print(f"Found {count} existing player mappings")
+          conn.close()
+          '
       
       - name: Sync player mappings to D1
         env:
@@ -344,10 +344,10 @@ conn.close()
              [ "${{ needs.refresh-lineups.result }}" == "success" ] && \
              [ "${{ needs.refresh-stats.result }}" == "success" ]; then
             echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=✅ D1 data refresh completed successfully (transactions, lineups, and player stats)" >> $GITHUB_OUTPUT
+            echo "message=SUCCESS: D1 data refresh completed successfully (transactions, lineups, and player stats)" >> $GITHUB_OUTPUT
           else
             echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=❌ D1 data refresh failed" >> $GITHUB_OUTPUT
+            echo "message=FAILED: D1 data refresh failed" >> $GITHUB_OUTPUT
           fi
       
       - name: Send Slack notification
