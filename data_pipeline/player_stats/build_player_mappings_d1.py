@@ -120,6 +120,11 @@ class PlayerMappingBuilder:
                 "SELECT DISTINCT mlb_id FROM player_mapping WHERE mlb_id IS NOT NULL"
             )
             
+            # Handle empty results gracefully
+            if not result or not result.get('results'):
+                logger.info("No existing MLB IDs found in D1 (empty table)")
+                return set()
+            
             existing_ids = set()
             for row in result.get('results', []):
                 if row and row[0]:
@@ -129,6 +134,10 @@ class PlayerMappingBuilder:
             return existing_ids
             
         except Exception as e:
+            # Don't log "0" as error - it might just be empty
+            if str(e) == "0":
+                logger.info("Player mapping table is empty")
+                return set()
             logger.error(f"Error getting existing IDs: {e}")
             return set()
     
@@ -209,29 +218,64 @@ class PlayerMappingBuilder:
         yahoo_players = {}
         
         try:
+            # First check if transactions table has data
+            check_result = self.d1_conn.execute(
+                "SELECT COUNT(*) FROM transactions"
+            )
+            
+            if not check_result or not check_result.get('results'):
+                logger.info("No transactions data available yet")
+                return {}
+            
+            count = check_result['results'][0][0] if check_result['results'] else 0
+            if count == 0:
+                logger.info("Transactions table is empty")
+                return {}
+            
             # Get unique Yahoo players from transactions
             result = self.d1_conn.execute("""
                 SELECT DISTINCT yahoo_player_id, player_name, player_team
                 FROM transactions
                 WHERE yahoo_player_id IS NOT NULL AND yahoo_player_id != ''
-                UNION
-                SELECT DISTINCT yahoo_player_id, player_name, player_team
-                FROM daily_lineups
-                WHERE yahoo_player_id IS NOT NULL AND yahoo_player_id != ''
+                LIMIT 5000
             """)
             
-            for row in result.get('results', []):
-                if row and row[0]:
-                    yahoo_players[row[0]] = {
-                        'yahoo_player_id': row[0],
-                        'player_name': row[1] if row[1] else '',
-                        'team': row[2] if len(row) > 2 else None
-                    }
+            if result and result.get('results'):
+                for row in result['results']:
+                    if row and row[0]:
+                        yahoo_players[row[0]] = {
+                            'yahoo_player_id': row[0],
+                            'player_name': row[1] if row[1] else '',
+                            'team': row[2] if len(row) > 2 else None
+                        }
+            
+            # Also try daily_lineups
+            try:
+                lineup_result = self.d1_conn.execute("""
+                    SELECT DISTINCT yahoo_player_id, player_name, player_team
+                    FROM daily_lineups
+                    WHERE yahoo_player_id IS NOT NULL AND yahoo_player_id != ''
+                    LIMIT 5000
+                """)
+                
+                if lineup_result and lineup_result.get('results'):
+                    for row in lineup_result['results']:
+                        if row and row[0] and row[0] not in yahoo_players:
+                            yahoo_players[row[0]] = {
+                                'yahoo_player_id': row[0],
+                                'player_name': row[1] if row[1] else '',
+                                'team': row[2] if len(row) > 2 else None
+                            }
+            except Exception as lineup_error:
+                logger.debug(f"Could not get lineups: {lineup_error}")
             
             logger.info(f"Found {len(yahoo_players)} Yahoo players from D1")
             
         except Exception as e:
-            logger.warning(f"Could not get Yahoo players from D1: {e}")
+            if str(e) == "0":
+                logger.info("No Yahoo player data available yet in D1")
+            else:
+                logger.warning(f"Could not get Yahoo players from D1: {e}")
             
         return yahoo_players
     
@@ -357,31 +401,45 @@ class PlayerMappingBuilder:
         # Ensure table exists
         self.ensure_table_exists()
         
-        # Get existing MLB IDs to avoid duplicates
+        # Get existing MLB IDs (might be empty on first run)
         existing_ids = self.get_existing_mlb_ids()
         
         # Get all MLB players from PyBaseball
         mlb_players = self.get_mlb_players_from_pybaseball()
         
-        # Filter out players we already have
+        # Get Yahoo players (might be empty initially)
+        yahoo_players = self.get_yahoo_players_from_league()
+        
+        if not yahoo_players:
+            logger.info("No Yahoo players available yet - will insert MLB players without Yahoo IDs")
+            logger.info("Yahoo IDs will be added in future runs when transaction/lineup data is available")
+        else:
+            logger.info(f"Found {len(yahoo_players)} Yahoo players to match")
+        
+        # Filter truly new players
         new_players = [
             p for p in mlb_players 
             if p.get('mlb_id') and int(p['mlb_id']) not in existing_ids
         ]
-        logger.info(f"Found {len(new_players)} new MLB players to add")
         
-        # Get Yahoo players from league data
-        yahoo_players = self.get_yahoo_players_from_league()
-        
-        # Match and merge
-        matched_players = self.match_and_merge_players(mlb_players, yahoo_players)
-        
-        # Insert new players
         if new_players:
+            logger.info(f"Found {len(new_players)} new MLB players to add")
+            # Match with Yahoo if available
+            if yahoo_players:
+                new_players = self.match_and_merge_players(new_players, yahoo_players)
             self.insert_new_players(new_players)
+        else:
+            logger.info("No new MLB players to add")
         
-        # Update Yahoo IDs for all players (including existing)
-        self.update_yahoo_ids(matched_players)
+        # Always try to update Yahoo IDs for ALL existing players
+        if yahoo_players and mlb_players:
+            logger.info("Updating Yahoo IDs for existing players...")
+            matched_players = self.match_and_merge_players(mlb_players, yahoo_players)
+            self.update_yahoo_ids(matched_players)
+        elif yahoo_players:
+            logger.info("No MLB players to update with Yahoo IDs")
+        else:
+            logger.info("No Yahoo data available for ID updates yet")
         
         # Show final stats
         self.show_stats()
