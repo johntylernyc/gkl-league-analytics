@@ -60,6 +60,9 @@ export default {
     
     router.get('/lineups', (req) => handleLineups(req, env, 'list'));
     router.get('/lineups/dates', (req) => handleLineups(req, env, 'dates'));
+    router.get('/lineups/teams', (req) => handleLineups(req, env, 'teams'));
+    router.get('/lineups/date/:date', (req) => handleLineups(req, env, 'daily'));
+    router.get('/lineups/summary/:date', (req) => handleLineups(req, env, 'summary'));
     router.get('/lineups/:date', (req) => handleLineups(req, env, 'daily'));
     router.get('/lineups/:date/team/:teamId', (req) => handleLineups(req, env, 'team'));
 

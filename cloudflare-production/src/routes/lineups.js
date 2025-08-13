@@ -12,8 +12,14 @@ export async function handleLineups(request, env, action) {
     switch (action) {
       case 'list':
         return await getLineupsList(db, query);
+      case 'dates':
+        return await getAvailableDates(db);
+      case 'teams':
+        return await getTeams(db);
       case 'daily':
         return await getDailyLineups(db, params.date);
+      case 'summary':
+        return await getLineupSummary(db, params.date);
       case 'team':
         return await getTeamLineup(db, params.date, params.teamId);
       default:
@@ -106,6 +112,61 @@ async function getTeamLineup(db, date, teamId) {
     team_name: lineup[0]?.team_name,
     manager_name: lineup[0]?.manager_name,
     positions: lineup
+  }), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+async function getAvailableDates(db) {
+  const dates = await db.all(`
+    SELECT DISTINCT date 
+    FROM daily_lineups 
+    ORDER BY date DESC
+    LIMIT 365
+  `);
+  
+  // Return just the array of date strings
+  const dateList = dates.map(row => row.date);
+  
+  return new Response(JSON.stringify(dateList), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+async function getTeams(db) {
+  const teams = await db.all(`
+    SELECT DISTINCT 
+      dl.team_key,
+      t.team_name,
+      t.manager_name
+    FROM daily_lineups dl
+    LEFT JOIN teams t ON dl.team_key = t.team_key
+    WHERE t.team_name IS NOT NULL
+    ORDER BY t.team_name
+  `);
+  
+  return new Response(JSON.stringify(teams), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+async function getLineupSummary(db, date) {
+  // Get summary statistics for a specific date
+  const summary = await db.first(`
+    SELECT 
+      COUNT(DISTINCT team_key) as teams,
+      COUNT(DISTINCT player_id) as unique_players,
+      SUM(CASE WHEN position = 'BN' THEN 1 ELSE 0 END) as benched,
+      SUM(CASE WHEN position IN ('IL', 'IL+', 'NA') THEN 1 ELSE 0 END) as injured
+    FROM daily_lineups
+    WHERE date = ?
+  `, [date]);
+  
+  return new Response(JSON.stringify(summary || {
+    teams: 0,
+    unique_players: 0,
+    benched: 0,
+    injured: 0
   }), {
     headers: { 'Content-Type': 'application/json' }
   });

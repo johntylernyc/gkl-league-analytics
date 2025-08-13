@@ -621,6 +621,12 @@ class ComprehensiveStatsCollector:
                         values.append(target_date)
                     elif col in ['mlb_id', 'mlb_player_id']:
                         values.append(row.get('mlb_id'))
+                    elif col in ['yahoo_player_id', 'baseball_reference_id', 'fangraphs_id']:
+                        # These ID columns should get their actual values from the row
+                        # They were set to None if no mapping was found (lines 411-413)
+                        value = row.get(col)
+                        # Don't use default value for ID columns - keep as None if not found
+                        values.append(value)
                     elif col == 'batting_ground_into_double_play':
                         # Handle production column name difference
                         values.append(row.get('batting_grounded_into_double_plays', 0))

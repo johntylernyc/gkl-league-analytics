@@ -39,6 +39,7 @@ except ImportError:
     import pybaseball
 
 from fuzzywuzzy import fuzz
+import pandas as pd
 from data_pipeline.common.d1_connection import D1Connection
 from data_pipeline.player_stats.yahoo_id_matcher import YahooIDMatcher
 
@@ -160,19 +161,27 @@ class PlayerMappingBuilder:
             # Convert to list of dicts
             player_list = []
             for _, player in recent_players.iterrows():
+                # Handle fangraphs_id - convert float to string integer
+                fangraphs_id = player.get('key_fangraphs')
+                if fangraphs_id is not None and not pd.isna(fangraphs_id):
+                    # Convert to int then to string to remove decimals
+                    fangraphs_id = str(int(fangraphs_id))
+                else:
+                    fangraphs_id = None
+                
                 player_dict = {
                     'mlb_id': player.get('key_mlbam'),
                     'baseball_reference_id': player.get('key_bbref'),
-                    'fangraphs_id': player.get('key_fangraphs'),
+                    'fangraphs_id': fangraphs_id,
                     'first_name': player.get('name_first', ''),
                     'last_name': player.get('name_last', ''),
                     'player_name': f"{player.get('name_first', '')} {player.get('name_last', '')}".strip(),
                     'active': 1 if player.get('mlb_played_last', 0) >= 2023 else 0
                 }
                 
-                # Clean up None values
+                # Clean up None values (except fangraphs_id which we already handled)
                 for key in player_dict:
-                    if player_dict[key] is None or (isinstance(player_dict[key], float) and pd.isna(player_dict[key])):
+                    if key != 'fangraphs_id' and (player_dict[key] is None or (isinstance(player_dict[key], float) and pd.isna(player_dict[key]))):
                         player_dict[key] = None
                 
                 player_list.append(player_dict)

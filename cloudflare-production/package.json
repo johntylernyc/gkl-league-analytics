@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler publish",
-    "deploy:prod": "wrangler publish --env production",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
     "export-db": "node scripts/export-database.js",
     "import-db": "node scripts/import-to-d1.js",
     "tail": "wrangler tail",

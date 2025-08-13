@@ -36,60 +36,44 @@ async function getTransactionsList(db, query) {
   const startDate = query.start_date;
   const endDate = query.end_date;
 
-  // Build query
+  // Build query - simplified for current production schema
   let sql = `
-    SELECT 
-      t.*,
-      GROUP_CONCAT(
-        json_object(
-          'player_name', tp.player_name,
-          'player_key', tp.player_key,
-          'source_type', tp.source_type,
-          'destination_type', tp.destination_type
-        )
-      ) as players_json
-    FROM transactions t
-    LEFT JOIN transaction_players tp ON t.transaction_id = tp.transaction_id
+    SELECT *
+    FROM transactions
     WHERE 1=1
   `;
   
   const params = [];
   
   if (searchTerm) {
-    sql += ` AND (tp.player_name LIKE ? OR t.transaction_key LIKE ?)`;
+    sql += ` AND (player_name LIKE ? OR transaction_id LIKE ?)`;
     params.push(`%${searchTerm}%`, `%${searchTerm}%`);
   }
   
   if (teamKey) {
-    sql += ` AND t.team_key = ?`;
-    params.push(teamKey);
+    sql += ` AND (source_team_key = ? OR destination_team_key = ?)`;
+    params.push(teamKey, teamKey);
   }
   
   if (transactionType) {
-    sql += ` AND t.type = ?`;
+    sql += ` AND transaction_type = ?`;
     params.push(transactionType);
   }
   
   if (startDate) {
-    sql += ` AND DATE(t.transaction_date) >= ?`;
+    sql += ` AND date >= ?`;
     params.push(startDate);
   }
   
   if (endDate) {
-    sql += ` AND DATE(t.transaction_date) <= ?`;
+    sql += ` AND date <= ?`;
     params.push(endDate);
   }
   
-  sql += ` GROUP BY t.transaction_id ORDER BY t.transaction_date DESC, t.timestamp DESC`;
+  sql += ` ORDER BY date DESC, timestamp DESC`;
   
   // Get paginated results
   const result = await db.paginate(sql, page, limit, params);
-  
-  // Parse players JSON
-  result.data = result.data.map(transaction => ({
-    ...transaction,
-    players: transaction.players_json ? JSON.parse(`[${transaction.players_json}]`) : []
-  }));
   
   return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json' }
@@ -97,51 +81,57 @@ async function getTransactionsList(db, query) {
 }
 
 async function getTransaction(db, id) {
-  const transaction = await db.first(
+  // For the current production schema, we get all rows for a transaction_id
+  const transactions = await db.all(
     `SELECT * FROM transactions WHERE transaction_id = ?`,
     [id]
   );
   
-  if (!transaction) {
+  if (!transactions || transactions.length === 0) {
     throw new Error('Transaction not found');
   }
   
-  // Get associated players
-  const players = await db.all(
-    `SELECT * FROM transaction_players WHERE transaction_id = ?`,
-    [id]
-  );
+  // Return the first transaction record with all related records
+  const result = {
+    ...transactions[0],
+    movements: transactions // Include all movements for this transaction
+  };
   
-  transaction.players = players;
-  
-  return new Response(JSON.stringify(transaction), {
+  return new Response(JSON.stringify(result), {
     headers: { 'Content-Type': 'application/json' }
   });
 }
 
 async function getTransactionFilters(db) {
   try {
-    // Get unique teams
+    // Get unique teams from both source and destination
     const teams = await db.all(`
-      SELECT DISTINCT team_key, team_name 
-      FROM transactions 
-      WHERE team_name IS NOT NULL 
+      WITH all_teams AS (
+        SELECT DISTINCT source_team_key as team_key, source_team_name as team_name 
+        FROM transactions 
+        WHERE source_team_key != '' AND source_team_name != ''
+        UNION
+        SELECT DISTINCT destination_team_key as team_key, destination_team_name as team_name 
+        FROM transactions 
+        WHERE destination_team_key != '' AND destination_team_name != ''
+      )
+      SELECT * FROM all_teams
       ORDER BY team_name
     `);
     
     // Get transaction types
     const types = await db.all(`
-      SELECT DISTINCT type 
+      SELECT DISTINCT transaction_type as type
       FROM transactions 
-      WHERE type IS NOT NULL 
-      ORDER BY type
+      WHERE transaction_type IS NOT NULL 
+      ORDER BY transaction_type
     `);
     
     // Get date range
     const dateRange = await db.first(`
       SELECT 
-        MIN(DATE(transaction_date)) as min_date,
-        MAX(DATE(transaction_date)) as max_date
+        MIN(date) as min_date,
+        MAX(date) as max_date
       FROM transactions
     `);
     
@@ -169,36 +159,50 @@ async function getTransactionStats(db) {
     // Get overview stats
     const overview = await db.first(`
       SELECT 
-        COUNT(DISTINCT transaction_id) as total_transactions,
-        COUNT(DISTINCT team_key) as total_teams,
-        COUNT(DISTINCT tp.player_key) as unique_players
-      FROM transactions t
-      LEFT JOIN transaction_players tp ON t.transaction_id = tp.transaction_id
+        COUNT(*) as total_transactions,
+        COUNT(DISTINCT CASE 
+          WHEN destination_team_key != '' THEN destination_team_key 
+          WHEN source_team_key != '' THEN source_team_key 
+        END) as total_teams,
+        COUNT(DISTINCT yahoo_player_id) as unique_players
+      FROM transactions
     `);
     
-    // Get manager stats
+    // Get manager stats - count all transactions where team is involved
     const managerStats = await db.all(`
+      WITH team_transactions AS (
+        SELECT destination_team_key as team_key, destination_team_name as team_name
+        FROM transactions
+        WHERE destination_team_key != '' AND destination_team_name != ''
+        UNION ALL
+        SELECT source_team_key as team_key, source_team_name as team_name
+        FROM transactions
+        WHERE source_team_key != '' AND source_team_name != ''
+      )
       SELECT 
         team_name,
         team_key,
         COUNT(*) as transaction_count
-      FROM transactions
-      WHERE team_name IS NOT NULL
+      FROM team_transactions
       GROUP BY team_key, team_name
       ORDER BY transaction_count DESC
     `);
     
-    // Get recent activity
+    // Get recent activity - D1 compatible date arithmetic
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
     const recentActivity = await db.all(`
       SELECT 
-        DATE(transaction_date) as date,
+        date,
         COUNT(*) as count
       FROM transactions
-      WHERE transaction_date >= date('now', '-30 days')
-      GROUP BY DATE(transaction_date)
+      WHERE date >= ?
+      GROUP BY date
       ORDER BY date DESC
       LIMIT 30
-    `);
+    `, [thirtyDaysAgoStr]);
     
     return new Response(JSON.stringify({
       overview: overview || {},
