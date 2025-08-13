@@ -155,7 +155,7 @@ async function getLineupSummary(db, date) {
   const summary = await db.first(`
     SELECT 
       COUNT(DISTINCT team_key) as teams,
-      COUNT(DISTINCT player_id) as unique_players,
+      COUNT(DISTINCT player_key) as unique_players,
       SUM(CASE WHEN position = 'BN' THEN 1 ELSE 0 END) as benched,
       SUM(CASE WHEN position IN ('IL', 'IL+', 'NA') THEN 1 ELSE 0 END) as injured
     FROM daily_lineups
