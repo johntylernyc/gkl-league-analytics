@@ -55,6 +55,40 @@ export default {
         });
       }
       
+      // Lineup by date endpoint
+      if (pathname.startsWith('/lineups/date/')) {
+        const date = pathname.split('/')[3];
+        
+        const result = await env.DB.prepare(`
+          SELECT *
+          FROM daily_lineups
+          WHERE date = ?
+          ORDER BY team_key, selected_position
+        `).bind(date).all();
+        
+        // Group by team
+        const teamLineups = {};
+        if (result.results) {
+          result.results.forEach(lineup => {
+            if (!teamLineups[lineup.team_key]) {
+              teamLineups[lineup.team_key] = {
+                team_key: lineup.team_key,
+                team_name: lineup.team_name,
+                positions: []
+              };
+            }
+            teamLineups[lineup.team_key].positions.push(lineup);
+          });
+        }
+        
+        return new Response(JSON.stringify({
+          date,
+          teams: Object.values(teamLineups)
+        }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      
       // Lineup teams endpoint
       if (pathname === '/lineups/teams') {
         const result = await env.DB.prepare(
