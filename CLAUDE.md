@@ -17,6 +17,37 @@ GKL League Analytics is a production fantasy baseball analytics platform that co
 - ⏳ Player stats collection via PyBaseball (in progress - comprehensive MLB coverage)
 - ⏳ Advanced predictive analytics (planned)
 
+## Windows Development Environment
+
+**IMPORTANT**: This project is developed on Windows using PowerShell. Claude must:
+
+### Command Line Considerations:
+- **Always use PowerShell syntax** for commands (not bash/Unix)
+  - Use `Remove-Item -Recurse -Force` instead of `rm -rf`
+  - Use `Copy-Item` instead of `cp`
+  - Use `Move-Item` instead of `mv`
+  - Use `Get-Content` instead of `cat`
+  - Use backslashes `\` for Windows paths or forward slashes `/` (both work)
+- **Handle Windows-specific issues**:
+  - No native `sqlite3` command - use Python scripts instead
+  - Different environment variable syntax: `$env:VAR_NAME` or `set VAR_NAME=value`
+  - Case-insensitive file system
+- **Unicode/Encoding Issues**:
+  - Avoid Unicode symbols in print statements (✅ ❌ 📊 etc.)
+  - Use ASCII alternatives: `[OK]`, `[ERROR]`, `[INFO]`, `[SUCCESS]`
+  - Python scripts may encounter `cp1252` encoding errors with Unicode
+  - Use `encoding='utf-8'` when opening files in Python
+
+### Python Development:
+- Default Python installation path: `C:\Users\johnt\AppData\Local\Programs\Python\Python313\`
+- Always handle encoding explicitly in file operations
+- Use raw strings or forward slashes for paths to avoid escape issues
+
+### Node.js/NPM Commands:
+- Use `npx` to run local packages
+- Clear npm cache issues with: `npm cache clean --force`
+- Remove node_modules with: `Remove-Item -Recurse -Force node_modules`
+
 ## Critical Development Rules
 
 ### 1. Development Process Requirements
