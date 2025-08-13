@@ -343,11 +343,11 @@ export default {
           const mostDropped = await env.DB.prepare(`
             SELECT 
               player_name,
-              player_id,
+              yahoo_player_id,
               COUNT(*) as drop_count
             FROM transactions
             WHERE movement_type = 'drop' AND player_name IS NOT NULL
-            GROUP BY player_name, player_id
+            GROUP BY player_name, yahoo_player_id
             ORDER BY drop_count DESC
             LIMIT 1
           `).first();
