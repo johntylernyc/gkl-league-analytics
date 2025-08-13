@@ -362,14 +362,17 @@ jobs:
           conn.close()
           '
       
-      - name: Sync player mappings to D1
+      - name: Build and update player mappings in D1
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
-          echo "Syncing player mappings to D1..."
-          python data_pipeline/player_stats/sync_player_mappings_to_d1.py --environment production || true
+          echo "Building comprehensive player mappings in D1..."
+          # Install required packages
+          pip install pybaseball fuzzywuzzy python-Levenshtein
+          # Build mappings (never deletes, only adds/updates)
+          python data_pipeline/player_stats/build_player_mappings_d1.py --environment production --use-d1 || true
       
       - name: Run stats incremental update
         env:

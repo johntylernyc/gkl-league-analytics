@@ -496,12 +496,13 @@ class TransactionUpdater:
         logger.info(f"Updating transactions from {start_date.date()} to {end_date.date()}")
         
         # Start job
+        days_count = (end_date - start_date).days + 1
         self.start_job(
             job_type='transaction_update',
             date_range_start=str(start_date.date()),
             date_range_end=str(end_date.date()),
             league_key=league_key,
-            metadata=f"Lookback: {days_back} days"
+            metadata=f"Date range: {start_date.date()} to {end_date.date()} ({days_count} days)"
         )
         
         # Process each day

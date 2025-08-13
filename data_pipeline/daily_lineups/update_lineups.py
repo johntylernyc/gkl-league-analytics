@@ -586,12 +586,13 @@ class LineupUpdater:
         logger.info(f"Processing {len(team_keys)} teams")
         
         # Start job
+        days_count = (end_date - start_date).days + 1
         self.start_job(
             job_type='lineup_update',
             date_range_start=str(start_date.date()),
             date_range_end=str(end_date.date()),
             league_key=league_key,
-            metadata=f"Lookback: {days_back} days, Teams: {len(team_keys)}"
+            metadata=f"Date range: {start_date.date()} to {end_date.date()} ({days_count} days), Teams: {len(team_keys)}"
         )
         
         # Process each day and team
