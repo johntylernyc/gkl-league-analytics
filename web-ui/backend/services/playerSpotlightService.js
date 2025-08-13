@@ -53,7 +53,7 @@ class PlayerSpotlightService {
   async getPlayerBasicInfo(playerId) {
     const player = await database.get(`
       SELECT 
-        player_id,
+        yahoo_player_id,
         player_name,
         player_team,
         position_type,
@@ -62,7 +62,7 @@ class PlayerSpotlightService {
         team_name as current_fantasy_team,
         date as current_team_since
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       ORDER BY date DESC
       LIMIT 1
     `, [playerId]);
@@ -75,13 +75,13 @@ class PlayerSpotlightService {
     const teamStartDate = await database.get(`
       SELECT MIN(date) as start_date
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       AND team_name = ?
       AND date <= ?
       AND date > COALESCE(
         (SELECT MAX(date) 
          FROM ${this.tableName} 
-         WHERE player_id = ? 
+         WHERE yahoo_player_id = ? 
          AND team_name != ? 
          AND date < ?),
         '1900-01-01'
@@ -105,11 +105,11 @@ class PlayerSpotlightService {
         COUNT(*) * 100.0 / (
           SELECT COUNT(*) 
           FROM ${this.tableName} 
-          WHERE player_id = ? 
+          WHERE yahoo_player_id = ? 
           AND strftime('%Y', date) = ?
         ) as percentage
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       AND strftime('%Y', date) = ?
       GROUP BY team_name
       ORDER BY MIN(date)
@@ -140,12 +140,12 @@ class PlayerSpotlightService {
         COUNT(*) * 100.0 / (
           SELECT COUNT(*) 
           FROM ${this.tableName} 
-          WHERE player_id = ? 
+          WHERE yahoo_player_id = ? 
           AND strftime('%Y', date) = ?
           AND team_name = ?
         ) as percentage
       FROM ${this.tableName}
-      WHERE player_id = ? 
+      WHERE yahoo_player_id = ? 
       AND strftime('%Y', date) = ?
       AND team_name = ?
       GROUP BY selected_position
@@ -156,7 +156,7 @@ class PlayerSpotlightService {
     const currentTeamResult = await database.get(`
       SELECT COUNT(*) as total_days
       FROM ${this.tableName}
-      WHERE player_id = ? 
+      WHERE yahoo_player_id = ? 
       AND strftime('%Y', date) = ?
       AND team_name = ?
     `, [playerId, season.toString(), currentTeam]);
@@ -165,7 +165,7 @@ class PlayerSpotlightService {
     const otherTeamResult = await database.get(`
       SELECT COUNT(*) as other_days
       FROM ${this.tableName}
-      WHERE player_id = ? 
+      WHERE yahoo_player_id = ? 
       AND strftime('%Y', date) = ?
       AND team_name != ?
     `, [playerId, season.toString(), currentTeam]);
@@ -195,7 +195,7 @@ class PlayerSpotlightService {
           team_name,
           COUNT(*) as days
         FROM ${this.tableName}
-        WHERE player_id = ?
+        WHERE yahoo_player_id = ?
         AND strftime('%Y', date) = ?
         AND team_name != ?
         GROUP BY team_name
@@ -286,7 +286,7 @@ class PlayerSpotlightService {
         team_name,
         COUNT(*) as position_days
       FROM ${this.tableName}
-      WHERE player_id = ? 
+      WHERE yahoo_player_id = ? 
       AND strftime('%Y', date) = ?
       GROUP BY month_year, month_name, selected_position, team_name
       ORDER BY month_year, MIN(date), team_name, selected_position
@@ -298,7 +298,7 @@ class PlayerSpotlightService {
         strftime('%Y-%m', date) as month_year,
         COUNT(DISTINCT date) as total_days
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       AND strftime('%Y', date) = ?
       GROUP BY month_year
     `, [playerId, season.toString()]);
@@ -539,7 +539,7 @@ class PlayerSpotlightService {
         MIN(date) as earliest_date,
         MAX(date) as latest_date
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       GROUP BY strftime('%Y', date)
       ORDER BY season DESC
     `, [playerId]);
@@ -566,7 +566,7 @@ class PlayerSpotlightService {
         team_name,
         player_team
       FROM ${this.tableName}
-      WHERE player_id = ? 
+      WHERE yahoo_player_id = ? 
       AND strftime('%Y', date) = ?
       ORDER BY date ASC
     `, [playerId, season.toString()]);
@@ -578,14 +578,14 @@ class PlayerSpotlightService {
   async searchPlayers(query, limit = 10) {
     const players = await database.all(`
       SELECT DISTINCT 
-        player_id,
+        yahoo_player_id,
         player_name,
         player_team,
         position_type,
         COUNT(*) as total_appearances
       FROM ${this.tableName}
       WHERE player_name LIKE ?
-      GROUP BY player_id, player_name, player_team, position_type
+      GROUP BY yahoo_player_id, player_name, player_team, position_type
       ORDER BY total_appearances DESC, player_name ASC
       LIMIT ?
     `, [`%${query}%`, limit]);
@@ -605,7 +605,7 @@ class PlayerSpotlightService {
       return {
         ...performanceData,
         player_info: {
-          player_id: playerInfo.player_id,
+          yahoo_yahoo_player_id: playerInfo.yahoo_player_id,
           player_name: playerInfo.player_name,
           player_team: playerInfo.player_team,
           position_type: playerInfo.position_type,

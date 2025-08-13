@@ -31,7 +31,7 @@ class TransactionService {
         league_key,
         transaction_id,
         transaction_type,
-        player_id,
+        yahoo_player_id,
         player_name,
         player_position,
         player_team,
@@ -154,7 +154,7 @@ class TransactionService {
     const stats = await database.all(`
       SELECT 
         MAX(CAST(transaction_id as INTEGER)) as total_transactions,
-        COUNT(DISTINCT player_id) as unique_players,
+        COUNT(DISTINCT yahoo_player_id) as unique_players,
         COUNT(DISTINCT destination_team_name) + COUNT(DISTINCT source_team_name) as unique_teams,
         MIN(date) as earliest_date,
         MAX(date) as latest_date

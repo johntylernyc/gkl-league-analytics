@@ -73,7 +73,7 @@ class PlayerService {
 
     // Get total count of unique players
     const countQuery = `
-      SELECT COUNT(DISTINCT player_id) as total
+      SELECT COUNT(DISTINCT yahoo_player_id) as total
       FROM ${this.lineupsTableName}
       ${whereClause}
     `;
@@ -85,7 +85,7 @@ class PlayerService {
     const playersQuery = `
       WITH player_lineup_stats AS (
         SELECT 
-          player_id,
+          yahoo_player_id,
           player_name,
           eligible_positions as position,
           player_team as mlb_team,
@@ -95,22 +95,22 @@ class PlayerService {
           MAX(date) as last_lineup_date
         FROM ${this.lineupsTableName} dl
         ${whereClause}
-        GROUP BY player_id, player_name, eligible_positions, player_team
+        GROUP BY yahoo_player_id, player_name, eligible_positions, player_team
       ),
       player_current_info AS (
         SELECT 
           pls.*,
           (SELECT team_name FROM ${this.lineupsTableName} dl2 
-           WHERE dl2.player_id = pls.player_id AND dl2.season = ${this.currentSeason}
+           WHERE dl2.yahoo_player_id = pls.yahoo_player_id AND dl2.season = ${this.currentSeason}
            ORDER BY date DESC, lineup_id DESC LIMIT 1) as most_recent_team,
           (SELECT player_status FROM ${this.lineupsTableName} dl3 
-           WHERE dl3.player_id = pls.player_id AND dl3.season = ${this.currentSeason}
+           WHERE dl3.yahoo_player_id = pls.yahoo_player_id AND dl3.season = ${this.currentSeason}
            ORDER BY date DESC, lineup_id DESC LIMIT 1) as health_status,
           -- Check if player is on a roster on the most recent date
           CASE 
             WHEN EXISTS (
               SELECT 1 FROM ${this.lineupsTableName} dl4 
-              WHERE dl4.player_id = pls.player_id 
+              WHERE dl4.yahoo_player_id = pls.yahoo_player_id 
                 AND dl4.season = ${this.currentSeason}
                 AND dl4.date = (SELECT MAX(date) FROM ${this.lineupsTableName} WHERE season = ${this.currentSeason})
             ) THEN 'Rostered'
@@ -120,13 +120,13 @@ class PlayerService {
       ),
       transaction_stats AS (
         SELECT 
-          player_id,
+          yahoo_player_id,
           COUNT(*) as transaction_count,
           SUM(CASE WHEN movement_type = 'add' THEN 1 ELSE 0 END) as times_added,
           SUM(CASE WHEN movement_type = 'drop' THEN 1 ELSE 0 END) as times_dropped,
           SUM(CASE WHEN movement_type = 'trade' THEN 1 ELSE 0 END) as times_traded
         FROM ${this.tableName}
-        GROUP BY player_id
+        GROUP BY yahoo_player_id
       )
       SELECT 
         pci.*,
@@ -135,7 +135,7 @@ class PlayerService {
         COALESCE(ts.times_dropped, 0) as times_dropped,
         COALESCE(ts.times_traded, 0) as times_traded
       FROM player_current_info pci
-      LEFT JOIN transaction_stats ts ON pci.player_id = ts.player_id
+      LEFT JOIN transaction_stats ts ON pci.yahoo_player_id = ts.yahoo_player_id
       ORDER BY pci.days_rostered DESC, pci.player_name
       LIMIT ? OFFSET ?
     `;
@@ -220,7 +220,7 @@ class PlayerService {
     // Get player data from daily lineups
     const player = await database.get(`
       SELECT 
-        player_id,
+        yahoo_player_id,
         player_name,
         eligible_positions as position,
         player_team as mlb_team,
@@ -229,8 +229,8 @@ class PlayerService {
         COUNT(DISTINCT team_name) as teams_played_for,
         MAX(date) as last_lineup_date
       FROM ${this.lineupsTableName}
-      WHERE player_id = ? AND season = ?
-      GROUP BY player_id, player_name, eligible_positions, player_team
+      WHERE yahoo_player_id = ? AND season = ?
+      GROUP BY yahoo_player_id, player_name, eligible_positions, player_team
     `, [playerId, this.currentSeason]);
 
     if (!player) {
@@ -245,14 +245,14 @@ class PlayerService {
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM ${this.lineupsTableName} dl2 
-            WHERE dl2.player_id = ? 
+            WHERE dl2.yahoo_player_id = ? 
               AND dl2.season = ?
               AND dl2.date = (SELECT MAX(date) FROM ${this.lineupsTableName} WHERE season = ?)
           ) THEN 'Rostered'
           ELSE 'Free Agent'
         END as roster_status
       FROM ${this.lineupsTableName}
-      WHERE player_id = ? AND season = ?
+      WHERE yahoo_player_id = ? AND season = ?
       ORDER BY date DESC, lineup_id DESC
       LIMIT 1
     `, [playerId, this.currentSeason, this.currentSeason, playerId, this.currentSeason]);
@@ -265,7 +265,7 @@ class PlayerService {
         SUM(CASE WHEN movement_type = 'drop' THEN 1 ELSE 0 END) as times_dropped,
         SUM(CASE WHEN movement_type = 'trade' THEN 1 ELSE 0 END) as times_traded
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
     `, [playerId]);
 
     return {

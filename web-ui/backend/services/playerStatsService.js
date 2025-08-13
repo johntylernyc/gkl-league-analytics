@@ -177,7 +177,7 @@ class PlayerStatsService {
       const playerInfoQuery = `
         SELECT player_name, team_name as current_team
         FROM ${this.lineupsTableName} 
-        WHERE player_id = ? 
+        WHERE yahoo_player_id = ? 
         ORDER BY date DESC
         LIMIT 1
       `;
@@ -202,7 +202,7 @@ class PlayerStatsService {
         WITH player_lineup_data AS (
           SELECT 
             date,
-            player_id,
+            yahoo_player_id,
             team_name,
             selected_position
           FROM ${this.lineupsTableName}
@@ -213,15 +213,15 @@ class PlayerStatsService {
           s.*,
           pld.selected_position,
           pld.team_name,
-          pld.player_id,
+          pld.yahoo_player_id,
           CASE 
-            WHEN pld.player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('BN') THEN 'benched'
-            WHEN pld.player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('IL', 'IL10', 'IL15', 'IL60') THEN 'injured_list'
-            WHEN pld.player_id = ? AND pld.team_name = ? AND pld.selected_position = 'NA' THEN 'minor_leagues'
-            WHEN pld.player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('Not Owned', 'FA', 'Not Rostered') THEN 'not_rostered'
-            WHEN pld.player_id = ? AND pld.team_name = ? AND pld.selected_position IS NOT NULL AND pld.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL15', 'IL60', 'NA', 'Not Owned', 'FA', 'Not Rostered') THEN 'started'
-            WHEN pld.player_id = ? AND pld.team_name != ? THEN 'other_roster'
-            WHEN pld.player_id IS NULL THEN 'not_rostered'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('BN') THEN 'benched'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('IL', 'IL10', 'IL15', 'IL60') THEN 'injured_list'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name = ? AND pld.selected_position = 'NA' THEN 'minor_leagues'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name = ? AND pld.selected_position IN ('Not Owned', 'FA', 'Not Rostered') THEN 'not_rostered'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name = ? AND pld.selected_position IS NOT NULL AND pld.selected_position NOT IN ('BN', 'IL', 'IL10', 'IL15', 'IL60', 'NA', 'Not Owned', 'FA', 'Not Rostered') THEN 'started'
+            WHEN pld.yahoo_player_id = ? AND pld.team_name != ? THEN 'other_roster'
+            WHEN pld.yahoo_player_id IS NULL THEN 'not_rostered'
             ELSE 'not_rostered'
           END as usage_type
         FROM ${this.playerStatsTableName} s
@@ -313,7 +313,7 @@ class PlayerStatsService {
       // Add metadata
       result.metadata = {
         season: season,
-        player_id: playerId,
+        yahoo_yahoo_player_id: playerId,
         generated_at: new Date().toISOString(),
         data_source: 'daily_gkl_player_stats'
       };

@@ -48,7 +48,7 @@ class LineupService {
         date,
         team_key,
         team_name,
-        player_id,
+        yahoo_player_id,
         player_name,
         selected_position,
         position_type,
@@ -82,7 +82,7 @@ class LineupService {
         };
       }
       groupedLineups[lineup.team_key].players.push({
-        player_id: lineup.player_id,
+        yahoo_yahoo_player_id: lineup.yahoo_player_id,
         player_name: lineup.player_name,
         selected_position: lineup.selected_position,
         position_type: lineup.position_type,
@@ -100,7 +100,7 @@ class LineupService {
     await this.ensureConnection();
     const query = `
       SELECT 
-        player_id,
+        yahoo_player_id,
         player_name,
         selected_position,
         position_type,
@@ -153,7 +153,7 @@ class LineupService {
         position_type,
         player_status
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
     `;
     
     const params = [playerId];
@@ -176,7 +176,7 @@ class LineupService {
     const playerQuery = `
       SELECT DISTINCT player_name
       FROM ${this.tableName}
-      WHERE player_id = ?
+      WHERE yahoo_player_id = ?
       LIMIT 1
     `;
     
@@ -191,7 +191,7 @@ class LineupService {
     };
     
     return {
-      player_id: playerId,
+      yahoo_yahoo_player_id: playerId,
       player_name: playerInfo?.player_name || 'Unknown Player',
       stats: stats,
       history: history
@@ -204,7 +204,7 @@ class LineupService {
     const summaryQuery = `
       SELECT 
         COUNT(DISTINCT team_key) as teams,
-        COUNT(DISTINCT player_id) as unique_players,
+        COUNT(DISTINCT yahoo_player_id) as unique_players,
         COUNT(*) as total_positions,
         SUM(CASE WHEN position_type = 'B' THEN 1 ELSE 0 END) as batters,
         SUM(CASE WHEN position_type = 'P' THEN 1 ELSE 0 END) as pitchers,
@@ -219,13 +219,13 @@ class LineupService {
     // Get most started players
     const topPlayersQuery = `
       SELECT 
-        player_id,
+        yahoo_player_id,
         player_name,
         COUNT(*) as times_started
       FROM ${this.tableName}
       WHERE date = ?
       AND selected_position NOT IN ('BN', 'IL', 'IL10', 'IL60', 'NA')
-      GROUP BY player_id, player_name
+      GROUP BY yahoo_player_id, player_name
       HAVING COUNT(*) > 1
       ORDER BY times_started DESC
       LIMIT 10
@@ -245,7 +245,7 @@ class LineupService {
     await this.ensureConnection();
     const query = `
       SELECT 
-        player_id,
+        yahoo_player_id,
         player_name,
         COUNT(DISTINCT date) as days_rostered,
         COUNT(DISTINCT team_key) as teams,
@@ -253,7 +253,7 @@ class LineupService {
         MAX(date) as last_seen
       FROM ${this.tableName}
       WHERE LOWER(player_name) LIKE LOWER(?)
-      GROUP BY player_id, player_name
+      GROUP BY yahoo_player_id, player_name
       ORDER BY days_rostered DESC
       LIMIT 20
     `;

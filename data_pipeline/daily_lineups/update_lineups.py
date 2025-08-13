@@ -141,7 +141,7 @@ class LineupUpdater:
                 date DATE NOT NULL,
                 team_key TEXT NOT NULL,
                 team_name TEXT NOT NULL,
-                player_id TEXT NOT NULL,
+                yahoo_player_id TEXT NOT NULL,
                 player_name TEXT NOT NULL,
                 selected_position TEXT,
                 position_type TEXT,
@@ -150,7 +150,7 @@ class LineupUpdater:
                 player_team TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, team_key, player_id, selected_position)
+                UNIQUE(date, team_key, yahoo_player_id, selected_position)
             )
         ''')
         
@@ -435,7 +435,7 @@ class LineupUpdater:
             players = root.findall('.//y:player', ns)
             
             for player in players:
-                player_id = player.find('.//y:player_id', ns)
+                yahoo_player_id = player.find('.//y:player_id', ns)
                 player_name = player.find('.//y:name/y:full', ns)
                 selected_position = player.find('.//y:selected_position/y:position', ns)
                 position_type = player.find('.//y:position_type', ns)
@@ -455,7 +455,7 @@ class LineupUpdater:
                     'date': date_str,
                     'team_key': team_key,
                     'team_name': team_name,
-                    'player_id': player_id.text if player_id is not None else '',
+                    'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
                     'player_name': player_name.text if player_name is not None else '',
                     'selected_position': selected_position.text if selected_position is not None else '',
                     'position_type': position_type.text if position_type is not None else '',
@@ -512,12 +512,12 @@ class LineupUpdater:
                     cursor.execute(f'''
                         INSERT OR IGNORE INTO {self.table_name} (
                             job_id, season, date, team_key, team_name,
-                            player_id, player_name, selected_position, position_type,
+                            yahoo_player_id, player_name, selected_position, position_type,
                             player_status, eligible_positions, player_team
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         lineup['job_id'], lineup['season'], lineup['date'],
-                        lineup['team_key'], lineup['team_name'], lineup['player_id'],
+                        lineup['team_key'], lineup['team_name'], lineup['yahoo_player_id'],
                         lineup['player_name'], lineup['selected_position'],
                         lineup['position_type'], lineup['player_status'],
                         lineup['eligible_positions'], lineup['player_team']

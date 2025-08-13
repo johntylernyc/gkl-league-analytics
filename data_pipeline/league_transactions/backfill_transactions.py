@@ -138,7 +138,7 @@ class TransactionBackfiller:
                 league_key TEXT NOT NULL,
                 transaction_id TEXT NOT NULL,
                 transaction_type TEXT NOT NULL,
-                player_id TEXT NOT NULL,
+                yahoo_player_id TEXT NOT NULL,
                 player_name TEXT NOT NULL,
                 player_position TEXT,
                 player_team TEXT,
@@ -150,7 +150,7 @@ class TransactionBackfiller:
                 timestamp INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 job_id TEXT,
-                UNIQUE(league_key, transaction_id, player_id, movement_type)
+                UNIQUE(league_key, transaction_id, yahoo_player_id, movement_type)
             )
         ''')
         
@@ -316,7 +316,7 @@ class TransactionBackfiller:
                 players = trans_elem.findall('.//y:player', ns)
                 
                 for player in players:
-                    player_id = player.find('.//y:player_id', ns)
+                    yahoo_player_id = player.find('.//y:player_id', ns)
                     player_name = player.find('.//y:name/y:full', ns)
                     player_team = player.find('.//y:editorial_team_abbr', ns)
                     player_pos = player.find('.//y:display_position', ns)
@@ -336,7 +336,7 @@ class TransactionBackfiller:
                             'league_key': league_key,
                             'transaction_id': trans_id.text if trans_id is not None else '',
                             'transaction_type': trans_type.text if trans_type is not None else '',
-                            'player_id': player_id.text if player_id is not None else '',
+                            'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
                             'player_name': player_name.text if player_name is not None else '',
                             'player_position': player_pos.text if player_pos is not None else '',
                             'player_team': player_team.text if player_team is not None else '',
@@ -385,13 +385,13 @@ class TransactionBackfiller:
                 cursor.execute(f'''
                     INSERT OR IGNORE INTO {self.table_name} (
                         date, league_key, transaction_id, transaction_type,
-                        player_id, player_name, player_position, player_team,
+                        yahoo_player_id, player_name, player_position, player_team,
                         movement_type, destination_team_key, destination_team_name,
                         source_team_key, source_team_name, timestamp, job_id
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     trans['date'], trans['league_key'], trans['transaction_id'],
-                    trans['transaction_type'], trans['player_id'], trans['player_name'],
+                    trans['transaction_type'], trans['yahoo_player_id'], trans['player_name'],
                     trans['player_position'], trans['player_team'], trans['movement_type'],
                     trans['destination_team_key'], trans['destination_team_name'],
                     trans['source_team_key'], trans['source_team_name'], trans.get('timestamp', 0), trans['job_id']
