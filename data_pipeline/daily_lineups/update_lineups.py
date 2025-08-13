@@ -455,7 +455,7 @@ class LineupUpdater:
                     'date': date_str,
                     'team_key': team_key,
                     'team_name': team_name,
-                    'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
+                    'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',
                     'player_name': player_name.text if player_name is not None else '',
                     'selected_position': selected_position.text if selected_position is not None else '',
                     'position_type': position_type.text if position_type is not None else '',
@@ -549,23 +549,38 @@ class LineupUpdater:
         Returns:
             Statistics dictionary
         """
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        
+        return self.update_date_range(start_date, end_date, league_key)
+    
+    def update_date_range(self, start_date: datetime, end_date: datetime,
+                         league_key: Optional[str] = None) -> Dict:
+        """
+        Update lineups for a specific date range.
+        
+        Args:
+            start_date: Start date
+            end_date: End date
+            league_key: Override league key
+            
+        Returns:
+            Statistics dictionary
+        """
         # Determine league key
         if not league_key:
-            current_year = datetime.now().year
-            league_key = get_league_key(current_year)
+            # Use year from start date
+            league_key = get_league_key(start_date.year)
             if not league_key:
-                logger.error(f"No league key found for {current_year}")
-                return {'error': f'No league key for {current_year}'}
+                logger.error(f"No league key found for {start_date.year}")
+                return {'error': f'No league key for {start_date.year}'}
         
         # Get all team keys
         team_keys = self.get_all_team_keys(league_key)
         if not team_keys:
             logger.error("Could not fetch team keys")
             return {'error': 'Failed to get team keys'}
-        
-        # Calculate date range
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
         
         logger.info(f"Updating lineups from {start_date.date()} to {end_date.date()}")
         logger.info(f"Processing {len(team_keys)} teams")
@@ -746,6 +761,10 @@ def main():
                        help='Update from last lineup date in database')
     parser.add_argument('--date', type=str,
                        help='Update specific date (YYYY-MM-DD)')
+    parser.add_argument('--start', type=str,
+                       help='Start date for range update (YYYY-MM-DD)')
+    parser.add_argument('--end', type=str,
+                       help='End date for range update (YYYY-MM-DD)')
     
     # Configuration options
     parser.add_argument('--environment', choices=['production', 'test'], default='production',
@@ -790,7 +809,13 @@ def main():
     
     try:
         # Execute based on arguments
-        if args.since_last:
+        if args.start and args.end:
+            # Update specific date range
+            start_date = datetime.strptime(args.start, '%Y-%m-%d')
+            end_date = datetime.strptime(args.end, '%Y-%m-%d')
+            stats = updater.update_date_range(start_date, end_date, args.league_key)
+            
+        elif args.since_last:
             # Update from last lineup date
             stats = updater.update_since_last(args.league_key)
             

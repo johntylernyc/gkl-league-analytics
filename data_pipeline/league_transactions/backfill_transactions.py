@@ -336,7 +336,7 @@ class TransactionBackfiller:
                             'league_key': league_key,
                             'transaction_id': trans_id.text if trans_id is not None else '',
                             'transaction_type': trans_type.text if trans_type is not None else '',
-                            'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
+                            'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',
                             'player_name': player_name.text if player_name is not None else '',
                             'player_position': player_pos.text if player_pos is not None else '',
                             'player_team': player_team.text if player_team is not None else '',

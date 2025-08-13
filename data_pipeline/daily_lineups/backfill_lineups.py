@@ -316,7 +316,7 @@ class LineupBackfiller:
                     'date': date_str,
                     'team_key': team_key,
                     'team_name': team_name,
-                    'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
+                    'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',
                     'player_name': player_name.text if player_name is not None else '',
                     'selected_position': selected_position.text if selected_position is not None else '',
                     'position_type': position_type.text if position_type is not None else '',

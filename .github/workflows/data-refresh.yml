@@ -150,13 +150,13 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
           echo "Running transaction incremental update with D1 direct write..."
-          # Calculate days between start and end date
           START_DATE="${{ needs.determine-refresh-params.outputs.start_date }}"
           END_DATE="${{ needs.determine-refresh-params.outputs.end_date }}"
-          DAYS=$((( $(date -d "$END_DATE" +%s) - $(date -d "$START_DATE" +%s) ) / 86400 + 1))
+          echo "Collecting transactions from $START_DATE to $END_DATE"
           
           python data_pipeline/league_transactions/update_transactions.py \
-            --days $DAYS \
+            --start "$START_DATE" \
+            --end "$END_DATE" \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} \
             --use-d1
           
@@ -212,13 +212,13 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
           echo "Running lineup incremental update with D1 direct write..."
-          # Calculate days between start and end date
           START_DATE="${{ needs.determine-refresh-params.outputs.start_date }}"
           END_DATE="${{ needs.determine-refresh-params.outputs.end_date }}"
-          DAYS=$((( $(date -d "$END_DATE" +%s) - $(date -d "$START_DATE" +%s) ) / 86400 + 1))
+          echo "Collecting lineups from $START_DATE to $END_DATE"
           
           python data_pipeline/daily_lineups/update_lineups.py \
-            --days $DAYS \
+            --start "$START_DATE" \
+            --end "$END_DATE" \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} \
             --use-d1
           
@@ -382,14 +382,13 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
         run: |
           echo "Running stats incremental update with D1 direct write..."
-          # Calculate days between start and end date
           START_DATE="${{ needs.determine-refresh-params.outputs.start_date }}"
           END_DATE="${{ needs.determine-refresh-params.outputs.end_date }}"
-          DAYS=$((( $(date -d "$END_DATE" +%s) - $(date -d "$START_DATE" +%s) ) / 86400 + 1))
-          echo "Collecting stats for $DAYS days from $START_DATE to $END_DATE"
+          echo "Collecting stats from $START_DATE to $END_DATE"
           
           python data_pipeline/player_stats/update_stats.py \
-            --days $DAYS \
+            --start "$START_DATE" \
+            --end "$END_DATE" \
             --environment ${{ needs.determine-refresh-params.outputs.environment }} \
             --use-d1
           

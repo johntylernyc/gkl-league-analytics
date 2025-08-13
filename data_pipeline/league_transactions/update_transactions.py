@@ -359,7 +359,7 @@ class TransactionUpdater:
                             'league_key': league_key,
                             'transaction_id': trans_id.text if trans_id is not None else '',
                             'transaction_type': trans_type.text if trans_type is not None else '',
-                            'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',',
+                            'yahoo_player_id': yahoo_player_id.text if yahoo_player_id is not None else '',
                             'player_name': player_name.text if player_name is not None else '',
                             'player_position': player_pos.text if player_pos is not None else '',
                             'player_team': player_team.text if player_team is not None else '',
@@ -469,6 +469,29 @@ class TransactionUpdater:
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days_back)
+        
+        return self.update_date_range(start_date, end_date, league_key)
+    
+    def update_date_range(self, start_date: datetime, end_date: datetime,
+                         league_key: Optional[str] = None) -> Dict:
+        """
+        Update transactions for a specific date range.
+        
+        Args:
+            start_date: Start date
+            end_date: End date
+            league_key: Override league key
+            
+        Returns:
+            Statistics dictionary
+        """
+        # Determine league key
+        if not league_key:
+            # Use year from start date
+            league_key = get_league_key(start_date.year)
+            if not league_key:
+                logger.error(f"No league key found for {start_date.year}")
+                return {'error': f'No league key for {start_date.year}'}
         
         logger.info(f"Updating transactions from {start_date.date()} to {end_date.date()}")
         
@@ -629,6 +652,10 @@ def main():
                        help='Update from last transaction date in database')
     parser.add_argument('--date', type=str,
                        help='Update specific date (YYYY-MM-DD)')
+    parser.add_argument('--start', type=str,
+                       help='Start date for range update (YYYY-MM-DD)')
+    parser.add_argument('--end', type=str,
+                       help='End date for range update (YYYY-MM-DD)')
     
     # Configuration options
     parser.add_argument('--environment', choices=['production', 'test'], default='production',
@@ -673,7 +700,13 @@ def main():
     
     try:
         # Execute based on arguments
-        if args.since_last:
+        if args.start and args.end:
+            # Update specific date range
+            start_date = datetime.strptime(args.start, '%Y-%m-%d')
+            end_date = datetime.strptime(args.end, '%Y-%m-%d')
+            stats = updater.update_date_range(start_date, end_date, args.league_key)
+            
+        elif args.since_last:
             # Update from last transaction date
             stats = updater.update_since_last(args.league_key)
             

@@ -79,7 +79,8 @@ class PlayerStatsUpdater:
         logger.info(f"Initialized updater for {environment} {'with D1' if use_d1 else 'with SQLite'}")
     
     def get_date_range(self, days: int = None, specific_date: str = None, 
-                      since_last: bool = False) -> tuple:
+                      since_last: bool = False, start_date: str = None, 
+                      end_date: str = None) -> tuple:
         """
         Determine date range for update.
         
@@ -87,11 +88,19 @@ class PlayerStatsUpdater:
             days: Number of days to look back
             specific_date: Specific date to update (YYYY-MM-DD)
             since_last: Update since last date in database
+            start_date: Start date for range (YYYY-MM-DD)
+            end_date: End date for range (YYYY-MM-DD)
             
         Returns:
             Tuple of (start_date, end_date)
         """
-        if specific_date:
+        if start_date and end_date:
+            # Explicit date range
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            return start, end
+            
+        elif specific_date:
             # Single date
             target = datetime.strptime(specific_date, '%Y-%m-%d').date()
             return target, target
@@ -327,6 +336,10 @@ def main():
     parser.add_argument('--date', help='Specific date to update (YYYY-MM-DD)')
     parser.add_argument('--since-last', action='store_true',
                        help='Update since last date in database')
+    parser.add_argument('--start', type=str,
+                       help='Start date for range update (YYYY-MM-DD)')
+    parser.add_argument('--end', type=str,
+                       help='End date for range update (YYYY-MM-DD)')
     
     # Database options
     parser.add_argument('--environment', default='production',
@@ -357,7 +370,9 @@ def main():
     start_date, end_date = updater.get_date_range(
         days=args.days,
         specific_date=args.date,
-        since_last=args.since_last
+        since_last=args.since_last,
+        start_date=args.start,
+        end_date=args.end
     )
     
     if start_date is None:
