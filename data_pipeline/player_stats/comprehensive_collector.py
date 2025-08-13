@@ -387,12 +387,11 @@ class ComprehensiveStatsCollector:
         
         # Enrich with player IDs from mapping table
         for idx, row in all_stats.iterrows():
-            # Use mlb_player_id for D1 (since we added that column), mlb_id for local
-            mlb_column = 'mlb_player_id' if self.use_d1 else 'mlb_id'
+            # Both local and D1 now use mlb_player_id after migration
             result = self._execute_query(f"""
                 SELECT yahoo_player_id, baseball_reference_id, fangraphs_id
                 FROM player_mapping
-                WHERE {mlb_column} = ?
+                WHERE mlb_player_id = ?
             """, (row['mlb_id'],))
             
             mapping = self._fetchone(result)
