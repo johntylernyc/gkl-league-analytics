@@ -382,7 +382,7 @@ class D1Connection:
             query = """
                 INSERT OR REPLACE INTO transactions (
                     date, league_key, transaction_id, transaction_type,
-                    player_id, player_name, player_position, player_team,
+                    yahoo_player_id, player_name, player_position, player_team,
                     movement_type, destination_team_key, destination_team_name,
                     source_team_key, source_team_name, timestamp, job_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -390,7 +390,7 @@ class D1Connection:
             
             params = [
                 trans['date'], trans['league_key'], trans['transaction_id'],
-                trans['transaction_type'], trans['player_id'], trans['player_name'], 
+                trans['transaction_type'], trans['yahoo_player_id'], trans['player_name'], 
                 trans['player_position'], trans['player_team'], trans['movement_type'],
                 trans['destination_team_key'], trans['destination_team_name'],
                 trans['source_team_key'], trans['source_team_name'], 
@@ -436,14 +436,14 @@ class D1Connection:
             query = """
                 INSERT OR REPLACE INTO daily_lineups (
                     job_id, season, date, team_key, team_name,
-                    player_id, player_name, selected_position, position_type,
+                    yahoo_player_id, player_name, selected_position, position_type,
                     player_status, eligible_positions, player_team
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             params = [
                 job_id, lineup['season'], lineup['date'], lineup['team_key'],
-                lineup['team_name'], lineup['player_id'], lineup['player_name'],
+                lineup['team_name'], lineup['yahoo_player_id'], lineup['player_name'],
                 lineup['selected_position'], lineup['position_type'],
                 lineup['player_status'], lineup['eligible_positions'], lineup['player_team']
             ]

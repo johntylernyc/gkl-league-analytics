@@ -179,25 +179,61 @@ class PlayerMappingBuilder:
         logger.info("Building Yahoo player registry from league data...")
         
         try:
-            # Use the Yahoo matcher to build registry
-            self.yahoo_matcher.build_yahoo_player_registry()
-            
-            # Get the registry
-            yahoo_players = {}
-            for yahoo_id, player_info in self.yahoo_matcher.yahoo_registry.items():
-                yahoo_players[yahoo_id] = {
-                    'yahoo_player_id': yahoo_id,
-                    'player_name': player_info['name'],
-                    'team': player_info.get('team'),
-                    'positions': player_info.get('positions', [])
-                }
-            
-            logger.info(f"Found {len(yahoo_players)} Yahoo players from league data")
-            return yahoo_players
+            # If using D1, get Yahoo players directly from D1
+            if self.use_d1:
+                return self.get_yahoo_players_from_d1()
+            else:
+                # Use the Yahoo matcher to build registry from local database
+                self.yahoo_matcher.build_yahoo_player_registry()
+                
+                # Get the registry
+                yahoo_players = {}
+                for yahoo_id, player_info in self.yahoo_matcher.yahoo_registry.items():
+                    yahoo_players[yahoo_id] = {
+                        'yahoo_player_id': yahoo_id,
+                        'player_name': player_info['name'],
+                        'team': player_info.get('team'),
+                        'positions': player_info.get('positions', [])
+                    }
+                
+                logger.info(f"Found {len(yahoo_players)} Yahoo players from league data")
+                return yahoo_players
             
         except Exception as e:
-            logger.error(f"Error getting Yahoo players: {e}")
+            logger.warning(f"Could not get Yahoo players from league: {e}")
+            logger.info("Continuing without Yahoo player matching")
             return {}
+    
+    def get_yahoo_players_from_d1(self) -> Dict[str, Dict]:
+        """Get Yahoo players directly from D1 transactions and lineups"""
+        yahoo_players = {}
+        
+        try:
+            # Get unique Yahoo players from transactions
+            result = self.d1_conn.execute("""
+                SELECT DISTINCT yahoo_player_id, player_name, player_team
+                FROM transactions
+                WHERE yahoo_player_id IS NOT NULL AND yahoo_player_id != ''
+                UNION
+                SELECT DISTINCT yahoo_player_id, player_name, player_team
+                FROM daily_lineups
+                WHERE yahoo_player_id IS NOT NULL AND yahoo_player_id != ''
+            """)
+            
+            for row in result.get('results', []):
+                if row and row[0]:
+                    yahoo_players[row[0]] = {
+                        'yahoo_player_id': row[0],
+                        'player_name': row[1] if row[1] else '',
+                        'team': row[2] if len(row) > 2 else None
+                    }
+            
+            logger.info(f"Found {len(yahoo_players)} Yahoo players from D1")
+            
+        except Exception as e:
+            logger.warning(f"Could not get Yahoo players from D1: {e}")
+            
+        return yahoo_players
     
     def match_and_merge_players(self, mlb_players: List[Dict], 
                                yahoo_players: Dict[str, Dict]) -> List[Dict]:
