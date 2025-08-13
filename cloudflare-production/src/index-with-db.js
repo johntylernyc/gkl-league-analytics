@@ -165,7 +165,7 @@ export default {
         const result = await env.DB.prepare(`
           SELECT 
             COUNT(DISTINCT team_key) as teams,
-            COUNT(DISTINCT player_id) as unique_players,
+            COUNT(DISTINCT yahoo_player_id) as unique_players,
             SUM(CASE WHEN selected_position = 'BN' THEN 1 ELSE 0 END) as benched,
             SUM(CASE WHEN selected_position IN ('IL', 'IL10', 'IL60', 'NA') THEN 1 ELSE 0 END) as injured
           FROM daily_lineups
